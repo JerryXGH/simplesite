@@ -1,0 +1,5 @@
+#+OPTIONS: toc:1
+#+CATEGORY: readme
+#+TAGS: blog, org-mode
+#+DESCRIPTION: Personal site generator based on org-mode files.
+#+TITLE: 基于org-mode的个人站点生成器

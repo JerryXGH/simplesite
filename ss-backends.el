@@ -37,10 +37,11 @@ SRC-DIR: directory to hold all source files.
 DIST-DIR: directory to hold all generated files."
   (let ((file-tlist
          (mapcar #'(lambda (src-file)
+                     (message (format "Processing file: %s ..." src-file))
                      (ss-export-org-file src-file
                                          src-dir
                                          dist-dir
-                                         (ss-file-changed-p src-file)))
+                                         (ss--file-changed-p src-file)))
                  (ss--get-all-src-files src-dir))))
     ;; delete nil elements
     (setq file-tlist (-filter #'(lambda (e) e) file-tlist))

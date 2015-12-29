@@ -33,7 +33,7 @@
 (defun ss-generate-categories (file-tlist)
   "Generate categories pages based on FILE-TLIST.
 
-FILE-TLIST: hash table of all source files"
+FILE-TLIST: hash table list of all source files."
   (let ((cate-list (ss--parse-categories file-tlist)))
     (ss--generate-categories-index cate-list)
     (mapc #'(lambda (e)

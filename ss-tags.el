@@ -35,7 +35,7 @@
 (defun ss-generate-tags (file-tlist)
   "Generate tags pages based on FILE-TLIST.
 
-FILE-TLIST: hash table of all source files"
+FILE-TLIST: hash table list of all source files."
   (let ((tag-list (ss--parse-tags file-tlist)))
     (ss--generate-tags-index tag-list)
     (mapc #'(lambda (e)

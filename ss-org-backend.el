@@ -30,7 +30,6 @@
 
 (require 'ox)
 
-(require 'dash)
 (require 'f)
 (require 's)
 (require 'ht)
@@ -60,10 +59,11 @@ attributes of ORG-FILE, but not generate content of it."
                 ("description" (or (ss--get-org-option "DESCRIPTION")
                                    "No Description"))
                 ("keywords" (or (ss--get-org-option "TAGS") ""))
-                ("category" (or (ss--get-category org-file src-dir)
+                ("category" (or (ss--get-org-option "CATEGORY")
+                                (ss--get-category org-file src-dir)
                                 "default"))
                 ("uri" uri)
-                ("date" (or (ss--get-org-option "DATE")
+                ("date" (or (ss--get-org-option "DATE") ;; do better date parse
                             (ss--format-iso-8601-date
                              (nth 5 (file-attributes org-file)))))
                 ("email" user-mail-address)
@@ -72,7 +72,7 @@ attributes of ORG-FILE, but not generate content of it."
         (if tags
             (ht-set attr-table
                     "tags"
-                    (delete "" (mapcar 'trim-string
+                    (delete "" (mapcar 'string-trim
                                        (split-string tags "[:,]+" t))))))
 
       (if should-generate-content-p

@@ -1,0 +1,58 @@
+#+OPTIONS: toc:1
+#+CATEGORY: interface
+#+TAGS: simplesite, developer
+#+DESCRIPTION: developer documentation of simplesite
+#+TITLE: developer documentation of simplesite
+* process of site generating
+  1. begin
+  2. check configuration
+  3. prepare theme files
+  4. parse all blog source files into a list consists of `(post-list
+     category-list tag-list archive-list)`, every element will not be nil. The
+     structure of eath list will be documented later.
+  5. generate every post page according to `post-list`
+  6. generate index page according to `post-list`
+  7. generate category pages according to `category-list`
+  8. generate tag pages according to `tag-list`
+  9. generate archive page according to `archive-list`
+  10. done
+* post-list
+  All posts will be put in `post-list`, post-list is list of hashtable `post`.
+** post - a blog file will be parsed as `post`
+   A post is a hashtable with these attributes:
+   | attribute name | comment                                                    |
+   |----------------+------------------------------------------------------------|
+   | file           | absolute path of the file                                  |
+   | md5            | md5 value of the file content                              |
+   | title          | blog title                                                 |
+   | description    | blog description                                           |
+   | keywords       | tags of this blog                                          |
+   | tags           | tags of this blog                                          |
+   | category       | category of this blog                                      |
+   | uri            | uri of this blog                                           |
+   | date           | create date of this blog                                   |
+   | email          | user email address                                         |
+   | output-dir     | target output directory                                    |
+   | post-content   | if this blog is changed, this is generated, or will be nil |
+
+* category-list
+  category-list is list of hashtable `category`.
+** category
+    A category is a hashtable with these attributes:
+    | attribute name | comment                          |
+    |----------------+----------------------------------|
+    | name           | category name                    |
+    | uri            | uri of the category              |
+    | posts          | posts of this category           |
+    | count          | number of posts of this category |
+    
+* tag-list
+  tag-list is list of hashtable `tag`.
+** tag
+    A tag is a hashtable with these attributes:
+    | tag name | comment                     |
+    |----------+-----------------------------|
+    | name     | tag name                    |
+    | uri      | uri of the tag              |
+    | posts    | posts of this tag           |
+    | count    | number of posts of this tag |

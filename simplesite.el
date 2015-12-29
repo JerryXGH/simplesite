@@ -2,25 +2,17 @@
 
 ;; Copyright 2015 Jerry Xu
 ;;
-;; Author: Jerry Xu gh_xu@qq.com
+;; Author: GuanghuiXu gh_xu@qq.com
 ;; Maintainer: Jerry Xu gh_xu@qq.com
-;; Version: 0.0
-;; Keywords: blog, static site, generator
-;; Homepage: not distributed yet
+;; Created: 28 Apr 2015
+;; Version: 0.1
+;; Keywords: blog, generator
+;; Homepage: https://github.com/jerryxgh/simplesite
+;; Package-Requires: ((org "8.0") (f "0.17.3")
+;; (s) (ht "0.9") (dash "1.2.0") (mustache "0.23"))
+;;
 
-;; This program is free software; you can redistribute it and/or modify
-;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 2, or (at your option)
-;; any later version.
-;;
-;; This program is distributed in the hope that it will be useful,
-;; but WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-;; GNU General Public License for more details.
-;;
-;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, write to the Free Software
-;; Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+;; This file is not part of GNU Emacs.
 
 ;;; Commentary:
 
@@ -29,13 +21,18 @@
 ;; Put this file into your load-path and the following into your ~/.emacs:
 ;;   (require 'simplesite)
 
+;;; Change Log:
+
+;; Version 0.1  2014/12/04 GuanghuiXu
+;;   - Initial release
+
 ;;; Code:
 
 (require 'ss-backends)
 (require 'ss-index)
 (require 'ss-post)
 (require 'ss-tags)
-(require 'ss-archive)
+(require 'ss-archives)
 (require 'ss-categories)
 (require 'ss-org-backend)
 
@@ -45,9 +42,14 @@
   "Generate site."
   (interactive)
   ;; check important variables
+  (message "Checking configuration...")
   (ss--check-variables)
   ;; copy theme resource files
-  ;;(ss-prepare-theme ss-dist-directory)
+  (message "Copying theme files...")
+  (ss-prepare-theme ss-theme
+                    ss-theme-directory
+                    ss-dist-directory
+                    ss-load-directory)
   (let ((file-tlist (ss-parse-all-src-files ss-source-directory
                                             ss-dist-directory)))
     ;; generate post if the file is changed, then release post-content
@@ -61,9 +63,11 @@
     (ss-generate-index file-tlist)
     (ss-generate-categories file-tlist)
     (ss-generate-tags file-tlist)
+    (ss-generate-archives file-tlist)
     (mapc #'(lambda (attr-table)
               (message (ht-get attr-table "date")))
-          file-tlist)))
+          file-tlist)
+    (message "Generating successfully!")))
 
 (defun ss--check-variables ()
   "Do some check before generate site."
@@ -82,11 +86,6 @@
 
 TODO: not implemented."
   post-content)
-
-;; test only
-(setq ss-source-directory
-      "/home/xgh/repository/lambda-x/non-elpa/simplesite/test/source"
-      ss-author "Jerry")
 
 (provide 'simplesite)
 

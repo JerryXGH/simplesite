@@ -3,89 +3,875 @@
 ;; Copyright 2015 Jerry Xu
 ;;
 ;; Author: GuanghuiXu gh_xu@qq.com
-;; Maintainer: Jerry Xu gh_xu@qq.com
-;; Created: 28 Apr 2015
+;; Maintainer: GuanghuiXu gh_xu@qq.com
+;; Created: 2015-4-28
 ;; Version: 0.1
-;; Keywords: blog, generator
+;; Keywords: blog
 ;; Homepage: https://github.com/jerryxgh/simplesite
-;; Package-Requires: ((org "8.0") (f "0.17.3")
-;; (s) (ht "0.9") (dash "1.2.0") (mustache "0.23"))
+;; Package-Version: 0.1
+;; Package-Requires: ((emacs "24") (org "8.0") (f "0.17.3") (mustache "0.23"))
 ;;
 
 ;; This file is not part of GNU Emacs.
+
+;;; Style note
+;;
+;; This codes uses the Emacs style of:
+;;
+;;    simplesite--private-function
+;;
+;; for private functions.
 
 ;;; Commentary:
 
 ;; Simple static site generator.
 
 ;; Put this file into your load-path and the following into your ~/.emacs:
-;;   (require 'simplesite)
+
+;; (require 'simplesite)
 
 ;;; Change Log:
 
-;; Version 0.1  2014/12/04 GuanghuiXu
+;; Version 0.1 2015-4-28 GuanghuiXu
 ;;   - Initial release
+
+;;; TODO:
+;;  - create a db to store all posts and theme info
+;;  - skip copying if theme not changed
+;;  - delete generating files if the source file is deleted
+;;  - add cask to build simplesite
+;;  - add a command to add or update post header
 
 ;;; Code:
 
-(require 'ss-backends)
-(require 'ss-index)
-(require 'ss-post)
-(require 'ss-tags)
-(require 'ss-archives)
-(require 'ss-categories)
-(require 'ss-org-backend)
+(require 'color)
+(require 'ox)
 
+(require 's)
+(require 'dash)
+(require 'ht)
+(require 'mustache)
+(require 'f)
+
+;;; constants
 (defconst simplesite-version "0.1")
 
-(defun ss-generate ()
-  "Generate site."
+(defconst simplesite-log-buffer "*[simplesite-log]*"
+  "Name of the temporary buffer used by simplesite.")
+
+(defconst simplesite-installed-directory
+  (if load-file-name (file-name-directory load-file-name))
+  "Directory where simplesite is loaded from, ends with '/'.")
+
+
+;;; custom options
+(defgroup simplesite nil
+  "Options for generating static site."
+  :tag "Static site generator based on org." :group 'org)
+
+(defcustom simplesite-debug t
+  "Debugging messages toggle, default to t."
+  :group 'simplesite :type 'boolean)
+
+(defcustom simplesite-author user-full-name
+  "Directory of all source files for generating site."
+  :group 'simplesite :type 'string)
+
+(defcustom simplesite-source-directory nil
+  "Directory of all source files for generating site."
+  :group 'simplesite :type 'string)
+
+(defcustom simplesite-output-directory nil
+  "Output directory for generated files."
+  :group 'simplesite :type 'string)
+
+(defcustom simplesite-index-posts-max 2
+  "Maximal number of posts shown in index page."
+  :group 'simplesite :type 'int)
+
+(defcustom simplesite-site-domain nil
+  "Domain name of entire site.
+It is recommended to assign with prefix http:// or https://,  http will be
+considered if not assigned."
+  :group 'simplesite :type 'string)
+
+(defcustom simplesite-site-title "simplesite"
+  "Main title of entire site."
+  :group 'simplesite :type 'string)
+
+(defcustom simplesite-site-main-desc "description"
+  "Main description of entire site."
+  :group 'simplesite :type 'string)
+
+(defcustom simplesite-site-main-keywords "keywords"
+  "Main keywords of entire site."
+  :group 'simplesite :type 'string)
+
+(defcustom simplesite-site-sub-title "static site generator"
+  "Subtitle of entire site."
+  :group 'simplesite :type 'string)
+
+(defcustom simplesite-theme-directory
+  (concat simplesite-installed-directory "themes/")
+  "Directory stores themes for page rendering.
+By default, it points to the directory `themes' in simplesite installation
+directory."
+  :group 'simplesite :type 'string)
+
+(defcustom simplesite-theme "next"
+  "Theme used for page generation."
+  :group 'simplesite :type 'string)
+
+(defcustom simplesite-personal-github-link nil
+  "Personal github link."
+  :group 'simplesite :type 'string)
+
+(defcustom simplesite-personal-avatar nil
+  "Link to an avatar image."
+  :group 'simplesite :type 'string)
+
+(defcustom simplesite-personal-disqus-shortname nil
+  "Personal disqus shortname."
+  :group 'simplesite :type 'string)
+
+(defcustom simplesite-personal-duoshuo-shortname nil
+  "Personal duoshuo shortname."
+  :group 'simplesite :type 'string)
+
+(defcustom simplesite-confound-email t
+  "This is used to determine whether email should be confounded or not."
+  :group 'simplesite :type 'boolean)
+
+(defcustom simplesite-tag-cloud-min-font 12
+  "Minimal font size in pixel of tags in tag cloud."
+  :group 'simplesite :type 'int)
+
+(defcustom simplesite-tag-cloud-max-font 30
+  "Maximal font size in pixel of tags in tag cloud."
+  :group 'simplesite :type 'int)
+
+(defcustom simplesite-tag-cloud-start-color "#ccc"
+  "Start color of tags in tag cloud."
+  :group 'simplesite :type 'string)
+
+(defcustom simplesite-tag-cloud-end-color "#111"
+  "End color of tags in tag cloud."
+  :group 'simplesite :type 'string)
+
+(defcustom simplesite-html-creator-string
+  (format "<a href=\"http://www.gnu.org/software/emacs/\">Emacs</a> %s\
+ (<a href=\"http://orgmode.org\">Org mode</a> %s)"
+          (format "%s.x" emacs-major-version)
+          (if (fboundp 'org-version)
+              (replace-regexp-in-string "\\..*" ".x" (org-version))
+            "Unknown Version"))
+  "Information about the creator of the HTML document."
+  :group 'simplesite
+  :type 'string)
+
+;;; theme
+(defun simplesite-prepare-theme (theme theme-dir output-dir load-dir)
+  "Copy resources of THEME in THEME-DIR to OUTPUT-DIR.
+
+If THEME not exist in THEME-DIR, use default theme `next' under LOAD-DIR."
+  (let ((theme-resource-output-dir (expand-file-name "resources/" output-dir))
+        (theme-resource-dir (simplesite-get-theme-resource-dir theme
+                                                               theme-dir)))
+    (unless (file-directory-p theme-resource-dir)
+      (message "Theme %s not found, use default theme `next' instead." theme)
+      (setq theme-dir (concat load-dir"themes/"))
+      (setq theme-resource-dir (simplesite-get-theme-resource-dir theme
+                                                                  theme-dir)))
+    (if (file-directory-p theme-resource-output-dir)
+        (delete-directory theme-resource-output-dir t))
+    (copy-directory theme-resource-dir theme-resource-output-dir t t t)))
+
+(defun simplesite-get-theme-resource-dir (theme theme-dir)
+  "Return resource directory of THEME under THEME-DIR ending with /."
+  (file-name-as-directory
+   (expand-file-name
+    (format "%s/resources" theme) theme-dir)))
+
+(defun simplesite-get-theme-template-dir (theme theme-dir)
+  "Return theme template directory of THEME under THEME-DIR ending with /."
+  (file-name-as-directory
+   (expand-file-name
+    (format "%s/templates" theme) theme-dir)))
+
+
+;;; backends
+(defun simplesite-parse-all-src-files (src-dir dist-dir progress-reporter)
+  "Parse all src files to hashmap list, return sorted list.
+
+SRC-DIR: directory to hold all source files.
+DIST-DIR: directory to hold all generated files.
+PROGRESS-REPORTER: a progress reporter."
+  (let* ((src-file-list (simplesite--get-all-src-files src-dir))
+         (src-file-count (length src-file-list))
+         (i 0)
+         (post-list
+          (mapcar #'(lambda (src-file)
+                      (setq i (+ i 1))
+                      (progress-reporter-update
+                       progress-reporter (+ 5 (/ (* 50 i) src-file-count)))
+
+                      (simplesite-export-org-file src-file src-dir dist-dir))
+                  src-file-list)))
+
+    ;; delete nil elements
+    (setq post-list (-filter #'(lambda (e) e) post-list))
+
+    ;; sort files by date in descendent order
+    (setq post-list (sort post-list
+                          #'(lambda (a b)
+                              (string< (ht-get b "date")
+                                       (ht-get a "date")))))
+    ;; set previous post and next post for every post
+    (let ((next-post (car post-list)))
+      (mapc #'(lambda (e)
+                (ht-set e "next-post" next-post)
+                (ht-set next-post "prev-post" e)
+                (setq next-post e))
+            (cdr post-list)))
+
+    ;; set post-count
+    (let ((post-count (length post-list)))
+      (mapc #'(lambda (e)
+                (ht-set e "post-count" post-count))
+            post-list))
+
+    post-list))
+
+(defun simplesite--get-all-src-files (directory)
+  "Return all source files under DIRECTORY and it's subdirectory.
+
+TODO: make regexp configurable."
+  (simplesite--walk-directory directory "^.*\\.org$"))
+
+(defun simplesite--walk-directory
+    (&optional directory match ignore-directories)
+  "Walk through DIRECTORY tree.
+If DIRECTOR is nil, use `default-directory' as startpoint.
+Argument MATCH can be a predicate or a regexp.
+Argument IGNORE-DIRECTORIES can be list of file names to be ignored."
+  (unless directory
+    (setq directory default-directory))
+  (unless (file-directory-p directory)
+    (setq directory (file-name-directory directory)))
+  (let (directory-stack result)
+    (if (file-exists-p directory)
+        (push directory directory-stack))
+    (while directory-stack
+      (let* ((current-directory (pop directory-stack))
+             (file-list (directory-files current-directory t)))
+        (mapc #'(lambda (file)
+                  (if (not (file-symlink-p file))
+                      (let ((file-name (file-name-nondirectory file)))
+                        (if (file-directory-p file)
+                            (if (and (not (equal file-name "."))
+                                     (not (equal file-name ".."))
+                                     (not (member file-name ignore-directories)))
+                                (push file directory-stack))
+                          (if match
+                              (and (if (functionp match)
+                                       (funcall match file)
+                                     (and (stringp match)
+                                          (string-match match file-name)))
+                                   (push file result))
+                            (push file result))))))
+              file-list)))
+    result))
+
+
+;;; org backend
+(defun simplesite-export-org-file (org-file src-dir dist-dir)
+  "Export one ORG-FILE, if it is changed, return file attributes.
+
+SRC-DIR should be `simplesite-source-directory',
+DIST-DIR should be `simplesite-output-directory',
+but to be simple, try to not use global variables.
+If SHOULD-GENERATE-CONTENT-P is t, generate content of ORG-FLLE, else, just get
+attributes of ORG-FILE, but not generate content of it."
+  (let ((output-dir (simplesite--compute-output-dir org-file dist-dir src-dir))
+        (uri (simplesite--compute-uri org-file src-dir))
+        post)
+    (with-temp-buffer
+      (setq buffer-file-coding-system 'utf-8)
+      (insert-file-contents org-file)
+
+      ;; collect attributes
+      (setq post
+            (ht ("file" org-file)
+                ("md5" (simplesite--md5-file org-file))
+                ("title" (or (simplesite--get-org-option "TITLE") "Untitled"))
+                ("author" (or (simplesite--get-org-option "AUTHOR")
+                              user-full-name "Unknown Author"))
+                ("description" (or (simplesite--get-org-option "DESCRIPTION")
+                                   "No Description"))
+                ("keywords" (or (simplesite--get-org-option "TAGS") ""))
+                ("category" (or (simplesite--get-org-option "CATEGORY")
+                                (simplesite--get-category org-file src-dir)
+                                "default"))
+                ("uri" uri)
+                ;; TODO: do better date parse
+                ("date" (or (simplesite--get-org-option "DATE")
+                            (simplesite--format-iso-8601-date
+                             (nth 5 (file-attributes org-file)))))
+                ("email" user-mail-address)
+                ("output-dir" output-dir)))
+      (let ((tags (ht-get post "keywords")))
+        (if tags
+            (ht-set post
+                    "tags"
+                    (delete "" (mapcar 'string-trim
+                                       (split-string tags "[:,]+" t))))))
+
+      (ht-set post "post-content" (org-export-as 'html nil nil t nil)))
+
+    post))
+
+(defun simplesite--compute-output-dir (org-file dist-dir src-dir)
+  "Get output directory of ORG-FILE, which ends with /.
+
+Result = DIST-DIR + \"/posts/\" + (ORG-FILE - SRC-DIR) - suffix + /."
+  (concat
+   (file-name-sans-extension
+    (concat dist-dir "/posts/" (s-chop-prefix src-dir org-file)))
+   "/"))
+
+(defun simplesite--compute-uri (org-file src-dir)
+  "Get uri of ORG-FILE.
+
+Result = \"/posts\" + (ORG-FILE - SRC-DIR - suffix)."
+  (concat "/posts" (file-name-sans-extension (s-chop-prefix src-dir org-file))))
+
+(defun simplesite--get-category (org-file src-dir)
+  "Get category of ORG-FILE.
+
+Result = first directory of (ORG-FILE - SRC-DIR), if nil, return filename."
+  (let ((src-dir (directory-file-name src-dir)))
+    (while (not (string= src-dir (f-parent org-file)))
+      (setq org-file (f-parent org-file)))
+    (file-name-base org-file)))
+
+(defun simplesite--get-org-option (option)
+  "Read option value of org file opened in current buffer.
+e.g:
+#+TITLE: this is title
+will return \"this is title\" if OPTION is \"TITLE\""
+  (let ((match-regexp (org-make-options-regexp `(,option))))
+    (save-excursion
+      (goto-char (point-min))
+      (if (re-search-forward match-regexp nil t)
+          (match-string-no-properties 2 nil)))))
+
+(defun simplesite--format-iso-8601-date (date)
+  "Format DATE to iso-8601 format."
+  (concat
+   (format-time-string "%Y-%m-%d" date)))
+
+(defun simplesite--format-iso-8601-time (time)
+  "Format TIME to iso-8601 format."
+  (concat
+   (format-time-string "%Y-%m-%dT%T" time)
+   (funcall (lambda (x) (concat (substring x 0 3) ":" (substring x 3 5)))
+            (format-time-string "%z" time))))
+
+(defun simplesite--md5-file (file)
+  "Return md5 digest of FILE."
+  (with-temp-buffer
+    (set-buffer-multibyte nil)
+    (setq buffer-file-coding-system 'binary)
+    (insert-file-contents-literally file)
+    (md5 (current-buffer))))
+
+
+;;; index page
+(defun simplesite-generate-index (post-list common-map)
+  "Generate index page based on POST-LIST using COMMON-MAP."
+  (let ((mustache-partial-paths
+         (list (simplesite-get-theme-template-dir simplesite-theme
+                                                  simplesite-theme-directory))))
+
+    (ht-set common-map "page-title" simplesite-site-title)
+    (ht-set common-map "content" (simplesite--render-index-content post-list))
+    (f-write
+     (mustache-render
+      (f-read (concat (simplesite-get-theme-template-dir
+                       simplesite-theme simplesite-theme-directory)
+                      "layout.mustache"))
+      common-map)
+     'utf-8
+     (concat simplesite-output-directory "/index.html"))))
+
+(defun simplesite--render-index-content (post-list)
+  "Render index content based on POST-LIST."
+  (mustache-render
+   (f-read (concat (simplesite-get-theme-template-dir
+                    simplesite-theme simplesite-theme-directory)
+                   "index.mustache"))
+   (ht ("post-list" post-list))))
+
+;;; category index page
+(defun simplesite-generate-categories (post-list common-map)
+  "Generate categorie pages based on POST-LIST using COMMON-MAP.
+
+POST-LIST: hash table list of all source files."
+  (let ((category-list (simplesite--parse-categories post-list)))
+    (simplesite--generate-categories-index category-list common-map)
+    (mapc #'(lambda (e)
+              (simplesite--generate-category-page e common-map))
+          category-list)))
+
+(defun simplesite--generate-categories-index (category-list common-map)
+  "Generate categories index page baaed on CATEGORY-LIST using COMMON-MAP.
+
+CATEGORY-LIST: hash table of <category, file>."
+  (let ((mustache-partial-paths
+         (list (simplesite-get-theme-template-dir simplesite-theme
+                                                  simplesite-theme-directory)))
+        (output-dir (concat simplesite-output-directory "/categories")))
+    (if (not (file-directory-p output-dir))
+        (mkdir output-dir t))
+    (ht-set common-map "page-title" (concat "Categories - "
+                                            simplesite-site-title))
+    (ht-set common-map "content" (simplesite--render-categories-index-content
+                                  category-list))
+    (f-write
+     (mustache-render
+      (f-read (concat (simplesite-get-theme-template-dir
+                       simplesite-theme simplesite-theme-directory)
+                      "layout.mustache"))
+
+      common-map)
+     'utf-8
+     (concat output-dir "/index.html"))))
+
+(defun simplesite--generate-category-page (category common-map)
+  "Generate one category page based CATEGORY using COMMON-MAP."
+  (let* ((mustache-partial-paths
+          (list (simplesite-get-theme-template-dir simplesite-theme
+                                                   simplesite-theme-directory)))
+         (cate-name (ht-get category "name"))
+         (output-dir (concat simplesite-output-directory "/categories/"
+                             cate-name)))
+    (if (not (file-directory-p output-dir))
+        (mkdir output-dir t))
+    (ht-set common-map "page-title" (concat "Categories: " cate-name " - "
+                                            simplesite-site-title))
+    (ht-set common-map "content" (simplesite--render-category-page-content
+                                  category))
+    (f-write
+     (mustache-render
+      (f-read (concat (simplesite-get-theme-template-dir
+                       simplesite-theme simplesite-theme-directory)
+                      "layout.mustache"))
+      common-map)
+     'utf-8
+     (concat output-dir "/index.html"))))
+
+(defun simplesite--render-categories-index-content (category-list)
+  "Render categories index content based on CATEGORY-LIST."
+  (mustache-render
+   (f-read (concat (simplesite-get-theme-template-dir
+                    simplesite-theme simplesite-theme-directory)
+                   "categories-index.mustache"))
+   (ht ("categories" category-list)
+       ("category-count" (length category-list)))))
+
+(defun simplesite--render-category-page-content (category)
+  "Render category page content based on CATEGORY."
+  (mustache-render
+   (f-read (concat (simplesite-get-theme-template-dir
+                    simplesite-theme simplesite-theme-directory)
+                   "category.mustache"))
+   category))
+
+(defun simplesite--parse-categories (post-list)
+  "Group POST-LIST by category."
+  (let ((category-map (ht-create))
+        categoriy-list)
+    (mapc #'(lambda (post)
+              (let ((category-name (ht-get post "category")))
+                (ht-set category-map
+                        category-name
+                        (cons post (ht-get category-map category-name)))))
+          post-list)
+    ;; convert hashtable to list
+    (setq categoriy-list
+          (ht-map #'(lambda (key value)
+                      (ht ("name" key)
+                          ("uri" (concat "/categories/" key))
+                          ("count" (length value))
+                          ("posts" value)))
+                  category-map))
+    ;; sort by category name
+    (setq categoriy-list
+          (sort categoriy-list
+                #'(lambda (a b)
+                    (string< (ht-get a "name")
+                             (ht-get b "name")))))
+    categoriy-list))
+
+;;; tag index page
+(defun simplesite-generate-tags (post-list common-map)
+  "Generate tag pages based on POST-LIST using COMMON-MAP.
+
+POST-LIST: hash table list of all source files."
+  (let ((tag-list (simplesite--parse-tags post-list)))
+    (simplesite--generate-tags-index tag-list common-map)
+    (mapc #'(lambda (post)
+              (simplesite--generate-tag-page post common-map))
+          tag-list)))
+
+(defun simplesite--generate-tags-index (tag-list common-map)
+  "Generate tags index page based on TAG-LIST using COMMON-MAP.
+
+TAG-LIST: hash table of <tag, file>."
+  (let ((mustache-partial-paths
+         (list (simplesite-get-theme-template-dir
+                simplesite-theme simplesite-theme-directory)))
+        (output-dir (concat simplesite-output-directory "/tags")))
+    (if (not (file-directory-p output-dir))
+        (mkdir output-dir t))
+    (ht-set common-map "page-title" (concat "Tags - " simplesite-site-title))
+    (ht-set common-map "content" (simplesite--render-tags-index-content
+                                  tag-list))
+    (f-write
+     (mustache-render
+      (f-read (concat (simplesite-get-theme-template-dir
+                       simplesite-theme simplesite-theme-directory)
+                      "layout.mustache"))
+      common-map)
+     'utf-8
+     (concat output-dir "/index.html")))
+  )
+
+(defun simplesite--generate-tag-page (tag common-map)
+  "Generate tag page based on TAG using COMMON-MAP."
+  (let* ((mustache-partial-paths
+          (list (simplesite-get-theme-template-dir
+                 simplesite-theme simplesite-theme-directory)))
+         (tag-name (ht-get tag "name"))
+         (output-dir (concat simplesite-output-directory "/tags/" tag-name)))
+    (if (not (file-directory-p output-dir))
+        (mkdir output-dir t))
+    (ht-set common-map "page-title" (concat "Tags: " tag-name " - "
+                                            simplesite-site-title))
+    (ht-set common-map "content" (simplesite--render-tag-page-content tag))
+    (f-write
+     (mustache-render
+      (f-read (concat (simplesite-get-theme-template-dir
+                       simplesite-theme simplesite-theme-directory)
+                      "layout.mustache"))
+      common-map)
+     'utf-8
+     (concat output-dir "/index.html"))))
+
+(defun simplesite--render-tags-index-content (tag-list)
+  "Render tags index content based on TAG-LIST."
+  (mustache-render
+   (f-read (concat (simplesite-get-theme-template-dir
+                    simplesite-theme simplesite-theme-directory)
+                   "tags-index.mustache"))
+   (ht ("tags" tag-list)
+       ("tag-count" (length tag-list)))))
+
+(defun simplesite--render-tag-page-content (tag)
+  "Render tag page content based on TAG."
+  (mustache-render
+   (f-read (concat (simplesite-get-theme-template-dir
+                    simplesite-theme simplesite-theme-directory)
+                   "tag.mustache"))
+   tag))
+
+(defun simplesite--parse-tags (post-list)
+  "Group POST-LIST by tag."
+  (let ((tag-map (ht-create))
+        (tag-max-count 1)
+        tag-color-gradient
+        tag-list)
+    (mapc #'(lambda (post)
+              (let ((tags (ht-get post "tags")))
+                (if (not tags)
+                    (ht-set tag-map
+                            "no-tag"
+                            (cons post (ht-get tag-map "no-tag")))
+                  (mapc #'(lambda (tag-name)
+                            (ht-set tag-map
+                                    tag-name
+                                    (cons post (ht-get tag-map tag-name))))
+                        tags))))
+          (reverse post-list))
+    ;; convert tag from hashtable to list and initialize tag-max-count
+    (setq tag-list
+          (ht-map #'(lambda (key value)
+                      (let ((tag-count (length value)))
+                        (if (> tag-count tag-max-count)
+                            (setq tag-max-count tag-count))
+                        (ht ("name" key)
+                            ("uri" (concat "/tags/" key))
+                            ("posts" value)
+                            ("count" tag-count))))
+                  tag-map))
+
+    ;; set tag font size and color in tag cloud
+    (setq tag-color-gradient (simplesite--compute-tag-color-gradient
+                              tag-max-count))
+    (mapc #'(lambda (post)
+              (let ((tag-count (ht-get post "count")))
+                (ht-set post "font-size" (simplesite--compute-tag-font-size
+                                          tag-count tag-max-count))
+                (ht-set post "color" (nth (- tag-count 1) tag-color-gradient))))
+          tag-list)
+
+    ;; sort by tag name
+    (setq tag-list
+          (sort tag-list
+                #'(lambda (a b)
+                    (string< (ht-get a "name")
+                             (ht-get b "name")))))
+    tag-list))
+
+(defun simplesite--compute-tag-font-size (count max-count)
+  "Compute font size of a tag with COUNT posts.
+
+MAX-COUNT: maximal posts that all tags have."
+  (if (< max-count 1)
+      simplesite-tag-cloud-min-font
+    (+ (round (* (/ (- count 1.0) (- max-count 1.0))
+                 (- simplesite-tag-cloud-max-font
+                    simplesite-tag-cloud-min-font)))
+
+       simplesite-tag-cloud-min-font)))
+
+(defun simplesite--compute-tag-color-gradient (max-count)
+  "Return a list with MAX-COUNT colors from `simplesite-tag-cloud-start-color' \
+to `simplesite-tag-cloud-end-color'."
+  (mapcar #'(lambda (color)
+              (apply #'color-rgb-to-hex color))
+          (cons (color-name-to-rgb simplesite-tag-cloud-start-color)
+                (append
+                 (color-gradient
+                  (color-name-to-rgb simplesite-tag-cloud-start-color)
+                  (color-name-to-rgb simplesite-tag-cloud-end-color)
+                  (- max-count 2))
+
+                 (list (color-name-to-rgb simplesite-tag-cloud-end-color))))))
+
+
+;;; post page
+(defun simplesite-generate-post (post common-map)
+  "Generate post based on POST using COMMON-MAP."
+  (ht-set common-map "page-title" (concat (ht-get post "title")
+                                          " - "
+                                          simplesite-site-title))
+  (ht-set common-map "content" (simplesite--render-post-content post))
+  (let ((mustache-partial-paths
+         (list (simplesite-get-theme-template-dir simplesite-theme
+                                                  simplesite-theme-directory)))
+
+        (output-dir (ht-get post "output-dir")))
+    (if (not (file-directory-p output-dir))
+        (mkdir output-dir t))
+    (f-write
+     (mustache-render
+      (f-read (concat (simplesite-get-theme-template-dir
+                       simplesite-theme simplesite-theme-directory)
+                      "layout.mustache"))
+      common-map)
+     'utf-8
+     (concat output-dir "index.html"))))
+
+(defun simplesite--render-post-content (post)
+  "Render content component of post based on POST."
+  (mustache-render
+   (f-read (concat (simplesite-get-theme-template-dir
+                    simplesite-theme simplesite-theme-directory)
+                   "post.mustache"))
+   post))
+
+
+;;; archive index page
+(defun simplesite-generate-archives (post-list common-map)
+  "Generate archive pages of all POST-LIST using COMMON-MAP.
+
+POST-LIST: hash table list of all source files."
+  (let ((archive-list (simplesite--parse-archives post-list)))
+    (simplesite--generate-archives-index archive-list common-map)))
+
+(defun simplesite--generate-archives-index (archive-list common-map)
+  "Generate archives index page baaed on ARCHIVE-LIST using COMMON-MAP.
+
+ARCHIVE-LIST: hash table of <archive, file>."
+  (let ((mustache-partial-paths
+         (list (simplesite-get-theme-template-dir simplesite-theme
+                                                  simplesite-theme-directory)))
+        (output-dir (concat simplesite-output-directory "/archives")))
+    (if (not (file-directory-p output-dir))
+        (mkdir output-dir t))
+    (ht-set common-map "page-title" (concat "Archives - " simplesite-site-title))
+    (ht-set common-map "content" (simplesite--render-archives-index-content
+                                  archive-list common-map))
+    (f-write
+     (mustache-render
+      (f-read (concat (simplesite-get-theme-template-dir
+                       simplesite-theme simplesite-theme-directory)
+                      "layout.mustache"))
+
+      common-map)
+     'utf-8
+     (concat output-dir "/index.html"))))
+
+(defun simplesite--render-archives-index-content (archive-list common-map)
+  "Render archives index content based on ARCHIVE-LIST using COMMON-MAP."
+  (ht-set common-map "archives" archive-list)
+  (mustache-render
+   (f-read (concat (simplesite-get-theme-template-dir
+                    simplesite-theme simplesite-theme-directory)
+                   "archives-index.mustache"))
+   common-map))
+
+(defun simplesite--render-archive-page-content (archive)
+  "Render archive page content based on ARCHIVE."
+  (mustache-render
+   (f-read (concat (simplesite-get-theme-template-dir
+                    simplesite-theme simplesite-theme-directory)
+                   "archive.mustache"))
+   archive))
+
+(defun simplesite--extract-year-of-date (date)
+  "Extract year of DATE."
+  (substring date 0 (string-match "-" date)))
+
+(defun simplesite--parse-archives (post-list)
+  "Group POST-LIST by year(or archive)."
+  (let ((archive-map (ht-create))
+        archive-list)
+    (mapc #'(lambda (post)
+              (let ((archive-name (simplesite--extract-year-of-date
+                                   (ht-get post "date"))))
+                (ht-set archive-map
+                        archive-name
+                        (cons post (ht-get archive-map archive-name)))))
+          post-list)
+    ;; convert hashtable to list
+    (setq archive-list
+          (ht-map #'(lambda (key value)
+                      (ht ("name" key)
+                          ;; ("uri" (concat "/categories/" key)) ;archive no uri
+                          ("posts" value)))
+                  archive-map))
+    ;; sort by category name
+    (setq archive-list
+          (sort archive-list
+                #'(lambda (a b)
+                    (string< (ht-get b "name")
+                             (ht-get a "name")))))
+    archive-list))
+
+
+;;; main process
+(defun simplesite-generate ()
+  "Generate site, this is the entrance function."
   (interactive)
-  ;; check important variables
-  (message "Checking configuration...")
-  (ss--check-variables)
-  ;; copy theme resource files
-  (message "Copying theme files...")
-  (ss-prepare-theme ss-theme
-                    ss-theme-directory
-                    ss-dist-directory
-                    ss-load-directory)
-  (let ((file-tlist (ss-parse-all-src-files ss-source-directory
-                                            ss-dist-directory)))
-    ;; generate post if the file is changed, then release post-content
-    (mapc #'(lambda (attr-table)
-              (when (ht-get attr-table "post-content")
-                (ss-generate-post attr-table)
-                (ht-remove attr-table "post-content")
-                (ht-remove attr-table "content")))
-          file-tlist)
+  (let ((progress-reporter
+         (make-progress-reporter "[simplesite]: generating..." 0  100)))
+    ;; check configurations
+    (simplesite--check-config progress-reporter)
+    ;; Prepare  theme resource files
+    (simplesite--debug "copying theme files...")
+    (simplesite-prepare-theme simplesite-theme
+                              simplesite-theme-directory
+                              simplesite-output-directory
+                              simplesite-installed-directory)
+    (progress-reporter-update progress-reporter 5)
+    (let* ((post-list (simplesite-parse-all-src-files
+                       simplesite-source-directory simplesite-output-directory
+                       progress-reporter))
+           (category-list (simplesite--parse-categories post-list))
+           (tag-list (simplesite--parse-tags post-list))
+           (archive-list (simplesite--parse-archives post-list))
 
-    (ss-generate-index file-tlist)
-    (ss-generate-categories file-tlist)
-    (ss-generate-tags file-tlist)
-    (ss-generate-archives file-tlist)
-    (mapc #'(lambda (attr-table)
-              (message (ht-get attr-table "date")))
-          file-tlist)
-    (message "Generating successfully!")))
+           (post-count (length post-list))
+           (category-count (length category-list))
+           (tag-count (length tag-list))
+           (archive-count (length archive-list))
+           (i 0)
 
-(defun ss--check-variables ()
-  "Do some check before generate site."
-  (unless (and ss-source-directory
-               (file-directory-p ss-source-directory))
-    (error "Directory `%s' is not properly configured" ss-source-directory))
-  (unless (and ss-dist-directory
-               (file-directory-p ss-dist-directory))
-    (setq ss-dist-directory
-          (f-parent ss-source-directory)))
-  (setq ss-source-directory (directory-file-name ss-source-directory))
-  (setq ss-dist-directory (directory-file-name ss-dist-directory)))
+           (common-map (ht ("page-title" simplesite-site-title)
+                           ("site-title" simplesite-site-title)
+                           ("site-sub-title" simplesite-site-sub-title)
+                           ("keywords" simplesite-site-main-keywords)
+                           ("description" simplesite-site-main-desc)
+                           ("author" simplesite-author)
+                           ("post-count" post-count)
+                           ("category-count" category-count)
+                           ("tag-count" tag-count)
+                           ("archive-count" archive-count)
+                           ("category-uri" "/categories/index.html")
+                           ("tag-count" tag-count)
+                           ("tag-uri" "/tags/index.html")
+                           ("archive-count" archive-count)
+                           ("archive-uri" "/archives/index.html"))))
+      ;; generate post, then release it to save memory
+      (mapc #'(lambda (post)
+                (when (ht-get post "post-content")
+                  (simplesite-generate-post post (ht-copy common-map))
+                  (setq i (+ i 1))
+                  (progress-reporter-update progress-reporter
+                                            (+ 55 (/ (* 40 i) post-count)))
+                  ;; release post content to save memory
+                  (ht-remove post "post-content")
+                  (ht-remove post "content")))
+            post-list)
 
-(defun ss--correct-links (post-content)
+      (simplesite-generate-index (-take simplesite-index-posts-max post-list)
+                                 (ht-copy common-map))
+      (progress-reporter-update progress-reporter 95)
+      (simplesite-generate-categories post-list (ht-copy common-map))
+      (progress-reporter-update progress-reporter 96)
+      (simplesite-generate-tags post-list (ht-copy common-map))
+      (progress-reporter-update progress-reporter 98)
+      (simplesite-generate-archives post-list (ht-copy common-map))
+      (progress-reporter-update progress-reporter 98)
+      (progress-reporter-done progress-reporter)
+      (message "Generating successfully!"))))
+
+(defun simplesite--check-config (progress-reporter)
+  "Do some check before generate site.
+PROGRESS-REPORTER is to report progress."
+  (simplesite--debug "checking configuration...")
+  (unless (and simplesite-source-directory
+               (file-directory-p simplesite-source-directory))
+    (progress-reporter-done progress-reporter)
+    (error "Directory `%s' is not properly configured"
+           simplesite-source-directory))
+  (unless (and simplesite-output-directory
+               (file-directory-p simplesite-output-directory))
+    (setq simplesite-output-directory
+          (f-parent simplesite-source-directory)))
+  (setq simplesite-source-directory (directory-file-name
+                                     simplesite-source-directory))
+  (setq simplesite-output-directory (directory-file-name
+                                     simplesite-output-directory))
+  (progress-reporter-update progress-reporter 1))
+
+(defun simplesite--correct-links (post-content)
   "Correct links in exported POST-CONTENT.
 
 TODO: not implemented."
   post-content)
+
+;;; debug
+(defun simplesite--debug (&rest args)
+  "Print a debug message like `message' if `simplesite-debug' is set.
+ARGS can be string or format and string."
+  (if simplesite-debug
+      (with-current-buffer (get-buffer-create simplesite-log-buffer)
+        (goto-char (point-max))
+        (insert "[simplesite]: " (apply 'format args) "\n"))
+    (apply 'message args)))
 
 (provide 'simplesite)
 

@@ -1,0 +1,68 @@
+#+OPTIONS: toc:1
+#+CATEGORY: interface
+#+TAGS: simplesite, developer
+#+DESCRIPTION: developer documentation of simplesite
+#+TITLE: developer documentation of simplesite
+* naming rules
+  1. function names begin with 'ss--' are private functions.
+* process of site generating
+  1. begin
+  2. check configuration
+  3. prepare theme files
+  4. parse all blog source files into a list consists of `(post-list
+     category-list tag-list archive-list)`, each element should not be nil, and
+     data structure of eath will be documented later.
+  5. generate every post page according to `post-list`
+  6. generate index page according to `post-list`
+  7. generate category pages according to `category-list`
+  8. generate tag pages according to `tag-list`
+  9. generate archive page according to `archive-list`
+  10. done
+* key data structures 
+** post-list
+   All posts will be put in `post-list`, post-list is list of hashtable `post`.
+   A post is a hashtable with these attributes:
+   | attribute name | comment                       |
+   |----------------+-------------------------------|
+   | file           | absolute path of the file     |
+   | md5            | md5 value of the file content |
+   | title          | blog title                    |
+   | description    | blog description              |
+   | keywords       | tags of this blog             |
+   | tags           | tags of this blog             |
+   | category       | category of this blog         |
+   | uri            | uri of this blog              |
+   | date           | create date of this blog      |
+   | email          | user email address            |
+   | output-dir     | target output directory       |
+   | post-content   | post content generated        |
+   | post-count     | number of all posts           |
+   | tag-count      | number of all tags            |
+   | category-count | number of all categories      |
+** category-list
+   category-list is list of hashtable `category`.
+   A category is a hashtable with these attributes:
+   | attribute name | comment                          |
+   |----------------+----------------------------------|
+   | name           | category name                    |
+   | uri            | uri of the category              |
+   | posts          | posts of this category           |
+   | count          | number of posts of this category |
+** tag-list
+   tag-list is list of hashtable `tag`.
+   A tag is a hashtable with these attributes:
+   | attribute name | comment                     |
+   |----------+-----------------------------|
+   | name     | tag name                    |
+   | uri      | uri of the tag              |
+   | posts    | posts of this tag           |
+   | count    | number of posts of this tag |
+** archive-list
+   archive-list is list of hashtable `archive`.
+   An archive is a hashtable with these attributes:
+   | attribute name | comment                         |
+   |----------------+---------------------------------|
+   | year           | string form year, like "2015"   |
+   | uri            | uri of the archive              |
+   | posts          | posts of this archive           |
+   | count          | number of posts of this archive |

@@ -107,7 +107,7 @@ considered if not assigned."
   "Main keywords of entire site."
   :group 'simplesite :type 'string)
 
-(defcustom simplesite-site-sub-title "static site generator"
+(defcustom simplesite-site-sub-title "subtitle"
   "Subtitle of entire site."
   :group 'simplesite :type 'string)
 
@@ -122,7 +122,7 @@ directory."
   "Theme used for page generation."
   :group 'simplesite :type 'string)
 
-(defcustom simplesite-personal-github-link nil
+(defcustom simplesite-personal-github-link "/"
   "Personal github link."
   :group 'simplesite :type 'string)
 
@@ -158,16 +158,12 @@ directory."
   "End color of tags in tag cloud."
   :group 'simplesite :type 'string)
 
-(defcustom simplesite-html-creator-string
-  (format "<a href=\"http://www.gnu.org/software/emacs/\">Emacs</a> %s\
- (<a href=\"http://orgmode.org\">Org mode</a> %s)"
-          (format "%s.x" emacs-major-version)
-          (if (fboundp 'org-version)
-              (replace-regexp-in-string "\\..*" ".x" (org-version))
-            "Unknown Version"))
-  "Information about the creator of the HTML document."
-  :group 'simplesite
-  :type 'string)
+(defvar simplesite--dest-directory (concat simplesite-output-directory
+                                                  "/dest")
+  "Destination directory of generated files.
+All generated files except 'index.html' of site should in this
+directory, when do generating, this directory will be deleted and
+recreated.")
 
 ;;; theme
 (defun simplesite-prepare-theme (theme theme-dir output-dir load-dir)
@@ -288,7 +284,7 @@ Argument IGNORE-DIRECTORIES can be list of file names to be ignored."
   "Export one ORG-FILE, if it is changed, return file attributes.
 
 SRC-DIR should be `simplesite-source-directory',
-DIST-DIR should be `simplesite-output-directory',
+DIST-DIR should be `simplesite--dest-directory',
 but to be simple, try to not use global variables.
 If SHOULD-GENERATE-CONTENT-P is t, generate content of ORG-FLLE, else, just get
 attributes of ORG-FILE, but not generate content of it."
@@ -342,8 +338,8 @@ Result = DIST-DIR + \"/posts/\" + (ORG-FILE - SRC-DIR) - suffix + /."
 (defun simplesite--compute-uri (org-file src-dir)
   "Get uri of ORG-FILE.
 
-Result = \"/posts\" + (ORG-FILE - SRC-DIR - suffix)."
-  (concat "/posts" (file-name-sans-extension (s-chop-prefix src-dir org-file))))
+Result = \"/dest/posts\" + (ORG-FILE - SRC-DIR - suffix)."
+  (concat "/dest/posts" (file-name-sans-extension (s-chop-prefix src-dir org-file))))
 
 (defun simplesite--get-category (org-file src-dir)
   "Get category of ORG-FILE.
@@ -430,7 +426,7 @@ CATEGORY-LIST: hash table of <category, file>."
   (let ((mustache-partial-paths
          (list (simplesite-get-theme-template-dir simplesite-theme
                                                   simplesite-theme-directory)))
-        (output-dir (concat simplesite-output-directory "/categories")))
+        (output-dir (concat simplesite--dest-directory "/categories")))
     (if (not (file-directory-p output-dir))
         (mkdir output-dir t))
     (ht-set common-map "page-title" (concat "Categories - "
@@ -453,7 +449,7 @@ CATEGORY-LIST: hash table of <category, file>."
           (list (simplesite-get-theme-template-dir simplesite-theme
                                                    simplesite-theme-directory)))
          (cate-name (ht-get category "name"))
-         (output-dir (concat simplesite-output-directory "/categories/"
+         (output-dir (concat simplesite--dest-directory "/categories/"
                              cate-name)))
     (if (not (file-directory-p output-dir))
         (mkdir output-dir t))
@@ -501,7 +497,7 @@ CATEGORY-LIST: hash table of <category, file>."
     (setq categoriy-list
           (ht-map #'(lambda (key value)
                       (ht ("name" key)
-                          ("uri" (concat "/categories/" key))
+                          ("uri" (concat "/dest/categories/" key))
                           ("count" (length value))
                           ("posts" value)))
                   category-map))
@@ -531,7 +527,7 @@ TAG-LIST: hash table of <tag, file>."
   (let ((mustache-partial-paths
          (list (simplesite-get-theme-template-dir
                 simplesite-theme simplesite-theme-directory)))
-        (output-dir (concat simplesite-output-directory "/tags")))
+        (output-dir (concat simplesite--dest-directory "/tags")))
     (if (not (file-directory-p output-dir))
         (mkdir output-dir t))
     (ht-set common-map "page-title" (concat "Tags - " simplesite-site-title))
@@ -553,7 +549,7 @@ TAG-LIST: hash table of <tag, file>."
           (list (simplesite-get-theme-template-dir
                  simplesite-theme simplesite-theme-directory)))
          (tag-name (ht-get tag "name"))
-         (output-dir (concat simplesite-output-directory "/tags/" tag-name)))
+         (output-dir (concat simplesite--dest-directory "/tags/" tag-name)))
     (if (not (file-directory-p output-dir))
         (mkdir output-dir t))
     (ht-set common-map "page-title" (concat "Tags: " tag-name " - "
@@ -610,7 +606,7 @@ TAG-LIST: hash table of <tag, file>."
                         (if (> tag-count tag-max-count)
                             (setq tag-max-count tag-count))
                         (ht ("name" key)
-                            ("uri" (concat "/tags/" key))
+                            ("uri" (concat "/dest/tags/" key))
                             ("posts" value)
                             ("count" tag-count))))
                   tag-map))
@@ -707,7 +703,7 @@ ARCHIVE-LIST: hash table of <archive, file>."
   (let ((mustache-partial-paths
          (list (simplesite-get-theme-template-dir simplesite-theme
                                                   simplesite-theme-directory)))
-        (output-dir (concat simplesite-output-directory "/archives")))
+        (output-dir (concat simplesite--dest-directory "/archives")))
     (if (not (file-directory-p output-dir))
         (mkdir output-dir t))
     (ht-set common-map "page-title" (concat "Archives - " simplesite-site-title))
@@ -759,7 +755,7 @@ ARCHIVE-LIST: hash table of <archive, file>."
     (setq archive-list
           (ht-map #'(lambda (key value)
                       (ht ("name" key)
-                          ;; ("uri" (concat "/categories/" key)) ;archive no uri
+                          ("uri" (concat "/dest/categories/" key))
                           ("posts" value)))
                   archive-map))
     ;; sort by category name
@@ -770,24 +766,30 @@ ARCHIVE-LIST: hash table of <archive, file>."
                              (ht-get a "name")))))
     archive-list))
 
-
 ;;; main process
+;;;###autoload
 (defun simplesite-generate ()
   "Generate site, this is the entrance function."
   (interactive)
   (let ((progress-reporter
-         (make-progress-reporter "[simplesite]: generating..." 0  100)))
+         (make-progress-reporter "[simplesite]: generating..." 0 100)))
     ;; check configurations
-    (simplesite--check-config progress-reporter)
+    (simplesite--check-config)
+    ;; cleanup old files generated
+    (simplesite--debug "clearing up old files generated...")
+    (f-delete simplesite--dest-directory t)
+    (mkdir simplesite--dest-directory t)
     ;; Prepare  theme resource files
     (simplesite--debug "copying theme files...")
     (simplesite-prepare-theme simplesite-theme
                               simplesite-theme-directory
-                              simplesite-output-directory
+                              ;; simplesite-output-directory
+                              simplesite--dest-directory
                               simplesite-installed-directory)
     (progress-reporter-update progress-reporter 5)
     (let* ((post-list (simplesite-parse-all-src-files
-                       simplesite-source-directory simplesite-output-directory
+                       simplesite-source-directory
+                       simplesite--dest-directory
                        progress-reporter))
            (category-list (simplesite--parse-categories post-list))
            (tag-list (simplesite--parse-tags post-list))
@@ -809,11 +811,11 @@ ARCHIVE-LIST: hash table of <archive, file>."
                            ("category-count" category-count)
                            ("tag-count" tag-count)
                            ("archive-count" archive-count)
-                           ("category-uri" "/categories/index.html")
+                           ("category-uri" "/dest/categories/index.html")
                            ("tag-count" tag-count)
-                           ("tag-uri" "/tags/index.html")
+                           ("tag-uri" "/dest/tags/index.html")
                            ("archive-count" archive-count)
-                           ("archive-uri" "/archives/index.html"))))
+                           ("archive-uri" "/dest/archives/index.html"))))
       ;; generate post, then release it to save memory
       (mapc #'(lambda (post)
                 (when (ht-get post "post-content")
@@ -838,14 +840,13 @@ ARCHIVE-LIST: hash table of <archive, file>."
       (progress-reporter-done progress-reporter)
       (message "Generating successfully!"))))
 
-(defun simplesite--check-config (progress-reporter)
+(defun simplesite--check-config ()
   "Do some check before generate site.
 PROGRESS-REPORTER is to report progress."
   (simplesite--debug "checking configuration...")
   (unless (and simplesite-source-directory
                (file-directory-p simplesite-source-directory))
-    (progress-reporter-done progress-reporter)
-    (error "Directory `%s' is not properly configured"
+    (error "Source directory `%s' is not exist"
            simplesite-source-directory))
   (unless (and simplesite-output-directory
                (file-directory-p simplesite-output-directory))
@@ -855,7 +856,10 @@ PROGRESS-REPORTER is to report progress."
                                      simplesite-source-directory))
   (setq simplesite-output-directory (directory-file-name
                                      simplesite-output-directory))
-  (progress-reporter-update progress-reporter 1))
+  (setq simplesite--dest-directory (concat simplesite-output-directory "/dest"))
+  (if (s-starts-with-p simplesite--dest-directory simplesite-source-directory)
+      (error "Source directory `%s' should not under `%s'"
+             simplesite-source-directory simplesite--dest-directory)))
 
 (defun simplesite--correct-links (post-content)
   "Correct links in exported POST-CONTENT.

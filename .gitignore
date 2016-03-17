@@ -3,3 +3,5 @@ GPATH
 GRTAGS
 GTAGS
 .cask
+dist
+*.elc

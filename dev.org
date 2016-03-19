@@ -5,6 +5,7 @@
 #+TITLE: developer documentation of simplesite
 * naming rules
   1. function names begin with 'ss--' are private functions.
+  2. function names begin with 'ss-' are public functions.
 * process of site generating
   1. begin
   2. check configuration

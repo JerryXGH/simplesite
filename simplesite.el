@@ -85,7 +85,7 @@
   "Output directory for generated files."
   :group 'simplesite :type 'string)
 
-(defcustom simplesite-index-posts-max 2
+(defcustom simplesite-index-posts-max 20
   "Maximal number of posts shown in index page."
   :group 'simplesite :type 'int)
 
@@ -122,8 +122,24 @@ directory."
   "Theme used for page generation."
   :group 'simplesite :type 'string)
 
-(defcustom simplesite-personal-github-link "/"
+(defcustom simplesite-personal-github-link nil
   "Personal github link."
+  :group 'simplesite :type 'string)
+
+(defcustom simplesite-personal-twitter-link nil
+  "Personal twitter link."
+  :group 'simplesite :type 'string)
+
+(defcustom simplesite-personal-weibo-link nil
+  "Personal weibo link."
+  :group 'simplesite :type 'string)
+
+(defcustom simplesite-personal-douban-link nil
+  "Personal douban link."
+  :group 'simplesite :type 'string)
+
+(defcustom simplesite-personal-zhihu-link nil
+  "Personal zhihu link."
   :group 'simplesite :type 'string)
 
 (defcustom simplesite-personal-avatar nil
@@ -159,7 +175,7 @@ directory."
   :group 'simplesite :type 'string)
 
 (defvar simplesite--dest-directory (concat simplesite-output-directory
-                                                  "/dest")
+                                           "/dest")
   "Destination directory of generated files.
 All generated files except 'index.html' of site should in this
 directory, when do generating, this directory will be deleted and
@@ -492,7 +508,7 @@ CATEGORY-LIST: hash table of <category, file>."
                 (ht-set category-map
                         category-name
                         (cons post (ht-get category-map category-name)))))
-          post-list)
+          (reverse post-list))
     ;; convert hashtable to list
     (setq categoriy-list
           (ht-map #'(lambda (key value)
@@ -750,7 +766,7 @@ ARCHIVE-LIST: hash table of <archive, file>."
                 (ht-set archive-map
                         archive-name
                         (cons post (ht-get archive-map archive-name)))))
-          post-list)
+          (reverse post-list))
     ;; convert hashtable to list
     (setq archive-list
           (ht-map #'(lambda (key value)
@@ -765,6 +781,26 @@ ARCHIVE-LIST: hash table of <archive, file>."
                     (string< (ht-get b "name")
                              (ht-get a "name")))))
     archive-list))
+
+(defun simplesite--get-avatar-uri ()
+  "Prepare avatar according to `simplesite-personal-avatar'and return uri.
+
+This should be call after theme prepared."
+  (let ((result "/dest/resources/images/default_avatar.jpg"))
+    (if simplesite-personal-avatar
+        (if (or (s-starts-with-p "http://" simplesite-personal-avatar)
+                (s-starts-with-p "https://" simplesite-personal-avatar))
+            (setq result simplesite-personal-avatar)
+          (if (file-exists-p simplesite-personal-avatar)
+              (progn
+                (f-copy simplesite-personal-avatar
+                        (concat simplesite--dest-directory
+                                "/resources/"))
+                (setq result (expand-file-name
+                              (f-filename simplesite-personal-avatar)
+                              "/dest/resources/")))
+            )))
+    result))
 
 ;;; main process
 ;;;###autoload
@@ -797,8 +833,12 @@ ARCHIVE-LIST: hash table of <archive, file>."
 
            (post-count (length post-list))
            (category-count (length category-list))
+           (category-uri "/dest/categories")
            (tag-count (length tag-list))
+           (tag-uri "/dest/tags")
            (archive-count (length archive-list))
+           (archive-uri "/dest/archives")
+           (avatar-uri (simplesite--get-avatar-uri))
            (i 0)
 
            (common-map (ht ("page-title" simplesite-site-title)
@@ -807,18 +847,28 @@ ARCHIVE-LIST: hash table of <archive, file>."
                            ("keywords" simplesite-site-main-keywords)
                            ("description" simplesite-site-main-desc)
                            ("author" simplesite-author)
+                           ("year" (format-time-string "%Y" (current-time)))
                            ("post-count" post-count)
                            ("category-count" category-count)
                            ("tag-count" tag-count)
                            ("archive-count" archive-count)
-                           ("category-uri" "/dest/categories/index.html")
+                           ("category-uri" category-uri)
                            ("tag-count" tag-count)
-                           ("tag-uri" "/dest/tags/index.html")
+                           ("tag-uri" tag-uri)
                            ("archive-count" archive-count)
-                           ("archive-uri" "/dest/archives/index.html"))))
+                           ("archive-uri" archive-uri)
+                           ("github-link" simplesite-personal-github-link)
+                           ("twitter-link" simplesite-personal-twitter-link)
+                           ("weibo-link" simplesite-personal-weibo-link)
+                           ("douban-link" simplesite-personal-douban-link)
+                           ("zhihu-link" simplesite-personal-zhihu-link)
+                           ("avatar-uri" avatar-uri)
+                           )))
+
       ;; generate post, then release it to save memory
       (mapc #'(lambda (post)
                 (when (ht-get post "post-content")
+                  (ht-set post "category-uri" category-uri)
                   (simplesite-generate-post post (ht-copy common-map))
                   (setq i (+ i 1))
                   (progress-reporter-update progress-reporter

@@ -10,7 +10,9 @@
             <div class="sidebar-inner">
               <div class="site-overview">
                 <div class="site-author motion-element">
-                  <img class="site-author-image" src="/dest/resources/images/default_avatar.jpg" alt="IIssNan">
+                  <a href="/" title="{{{author}}}">
+                    <img class="site-author-image" src="{{{avatar-uri}}}" alt="avatar">
+                  </a>
                   <p class="site-author-name">{{{site-title}}}</p>
                 </div>
                 <p class="site-description motion-element">{{{site-sub-title}}}</p>
@@ -50,32 +52,41 @@
                 <div class="links-of-author motion-element">
 
 
+                  {{#github-link}}
                   <span class="links-of-author-item">
-                    <a href="https://github.com/iissnan" target="_blank">GitHub</a>
+                    <a href="{{{github-link}}}" target="_blank">GitHub</a>
                   </span>
+                  {{/github-link}}
 
+                  {{#twitter-link}}
                   <span class="links-of-author-item">
-                    <a href="https://twitter.com/iissnan" target="_blank">Twitter</a>
+                    <a href="{{{twitter-link}}}" target="_blank">Twitter</a>
                   </span>
+                  {{/twitter-link}}
 
+                  {{#weibo-link}}
                   <span class="links-of-author-item">
-                    <a href="http://weibo.com/iissnan" target="_blank">Weibo</a>
+                    <a href="{{{weibo-link}}}" target="_blank">Weibo</a>
                   </span>
+                  {{/weibo-link}}
 
+                  {{#douban-link}}
                   <span class="links-of-author-item">
-                    <a href="http://douban.com/people/iissnan" target="_blank">DouBan</a>
+                    <a href="{{{douban-link}}}" target="_blank">Douban</a>
                   </span>
+                  {{/douban-link}}
 
+                  {{#zhihu-link}}
                   <span class="links-of-author-item">
-                    <a href="http://www.zhihu.com/people/iissnan" target="_blank">ZhiHu</a>
+                    <a href="{{{zhihu-link}}}" target="_blank">Zhihu</a>
                   </span>
-
+                  {{/zhihu-link}}
 
                 </div>
 
                 <div class="cc-license motion-element">
                   <a href="http://creativecommons.org/licenses/by-nc-sa/4.0" class="cc-opacity" target="_blank">
-                    <img src="tags_files/cc-by-nc-sa.svg" alt="Creative Commons">
+                    <img src="dest/resources/images/cc-by-nc-sa.svg" alt="Creative Commons">
                   </a>
                 </div>
               </div>

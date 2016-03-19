@@ -2,4 +2,21 @@
 #+CATEGORY: readme
 #+TAGS: blog, org-mode
 #+DESCRIPTION: Personal site generator based on org-mode files.
-#+TITLE: 基于org-mode的个人站点生成器
+#+TITLE: simplesite
+
+* Install
+  Download this package, add this to your .emacs:
+  #+BEGIN_SRC emacs-lisp
+    (add-to-list 'load-path "<path to install directory>")
+    (require 'simplesite)
+  #+END_SRC
+* Configuration
+  To use simplesite, some configuration is needed, here is an example:
+  #+BEGIN_SRC emacs-lisp
+    (setq simplesite-source-directory "<path to your org files>"
+          simplesite-output-directory "<path to output directory>"
+          simplesite-author "<Your name>")
+  #+END_SRC
+* Run
+  It's available via MELPA, so you can just <kbd>M-x package-install RET smartwin
+  RET</kbd>.

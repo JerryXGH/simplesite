@@ -295,9 +295,59 @@ Argument IGNORE-DIRECTORIES can be list of file names to be ignored."
     result))
 
 
+(defvar simplesite--file-links-in-srcs nil
+  "List of all links in source files.
+This is used between `org-html-link' and `simplesite-export-org-file'")
+
+;; (defvar simplesite--current-src-output-dir nil
+;;   "Current source file's output directory.
+;; This is used between `org-html-link' and `simplesite-export-org-file'")
+
+;;; advice of org-html-link to get list of links
+(defadvice org-html-link (before simplesite-org-html-link)
+  "Advice of org-html-link to get list of links."
+  (let* ((link (ad-get-arg 0))
+         (type (plist-get (nth 1 link) :type))
+         (path (plist-get (nth 1 link) :path))
+         (raw-link (plist-get (nth 1 link) :raw-link))
+         (dst-filename (f-filename raw-link))
+         link-plist)
+    (cond ((string= "file" type)
+           (plist-put (nth 1 link) :path dst-filename)
+           (plist-put (nth 1 link) :raw-link dst-filename)
+           (setq link-plist (plist-put link-plist :type type))
+           (setq link-plist (plist-put link-plist :path path))
+           (setq link-plist (plist-put link-plist :raw-link raw-link))
+           (setq link-plist (plist-put link-plist :dst-filename dst-filename))
+           (add-to-list 'simplesite--file-links-in-srcs link-plist)
+           ;; TODO: process other type links of org
+           ))))
+
+(defun simplesite--process-links-in-srcs (org-file links output-dir)
+  "Process ORG-FILE's LINKS, which is output to OUTPUT-DIR.
+
+Copy images to OUTPUT-DIR directory and rename it to link name."
+  (mapc #'(lambda (link)
+            (let* ((type (plist-get link :type))
+                   ;; (path (plist-get link :path))
+                   (raw-link (plist-get link :raw-link))
+                   (dst-filename (plist-get link :dst-filename))
+                   (src-file (expand-file-name raw-link (f-dirname org-file)))
+                   (dst-file (expand-file-name dst-filename output-dir)))
+              (if (not (file-directory-p output-dir))
+                  (mkdir output-dir t))
+              (cond ((string= "file" type)
+                     (if (file-exists-p src-file)
+                         (f-copy src-file dst-file)
+                       (simplesite--debug "file '%s' not exist" src-file))
+                     ;; TODO: process other type links of org
+                     ))))
+
+        links))
+
 ;;; org backend
 (defun simplesite-export-org-file (org-file src-dir dist-dir)
-  "Export one ORG-FILE, if it is changed, return file attributes.
+  "Export one ORG-FILE, return file attributes.
 
 SRC-DIR should be `simplesite-source-directory',
 DIST-DIR should be `simplesite--dest-directory',
@@ -325,7 +375,7 @@ attributes of ORG-FILE, but not generate content of it."
                                 (simplesite--get-category org-file src-dir)
                                 "default"))
                 ("uri" uri)
-                ;; TODO: do better date parse
+                ;; TODO: do better date parsing
                 ("date" (or (simplesite--get-org-option "DATE")
                             (simplesite--format-iso-8601-date
                              (nth 5 (file-attributes org-file)))))
@@ -337,25 +387,28 @@ attributes of ORG-FILE, but not generate content of it."
                     "tags"
                     (delete "" (mapcar 'string-trim
                                        (split-string tags "[:,]+" t))))))
-
-      (ht-set post "post-content" (org-export-as 'html nil nil t nil)))
+      (setq simplesite--file-links-in-srcs nil)
+      (ht-set post "post-content" (org-export-as 'html nil nil t nil))
+      (simplesite--process-links-in-srcs org-file simplesite--file-links-in-srcs
+                                         output-dir))
 
     post))
 
 (defun simplesite--compute-output-dir (org-file dist-dir src-dir)
   "Get output directory of ORG-FILE, which ends with /.
 
-Result = DIST-DIR + \"/posts/\" + (ORG-FILE - SRC-DIR) - suffix + /."
+Result = DIST-DIR + \"/posts\" + (ORG-FILE - SRC-DIR) - suffix + /."
   (concat
    (file-name-sans-extension
-    (concat dist-dir "/posts/" (s-chop-prefix src-dir org-file)))
+    (concat dist-dir "/posts" (s-chop-prefix src-dir org-file)))
    "/"))
 
 (defun simplesite--compute-uri (org-file src-dir)
   "Get uri of ORG-FILE.
 
 Result = \"/dest/posts\" + (ORG-FILE - SRC-DIR - suffix)."
-  (concat "/dest/posts" (file-name-sans-extension (s-chop-prefix src-dir org-file))))
+  (format "/dest/posts%s/index.html" (file-name-sans-extension
+                         (s-chop-prefix src-dir org-file))))
 
 (defun simplesite--get-category (org-file src-dir)
   "Get category of ORG-FILE.
@@ -513,7 +566,7 @@ CATEGORY-LIST: hash table of <category, file>."
     (setq categoriy-list
           (ht-map #'(lambda (key value)
                       (ht ("name" key)
-                          ("uri" (concat "/dest/categories/" key))
+                          ("uri" (format "/dest/categories/%s/index.html" key))
                           ("count" (length value))
                           ("posts" value)))
                   category-map))
@@ -622,7 +675,7 @@ TAG-LIST: hash table of <tag, file>."
                         (if (> tag-count tag-max-count)
                             (setq tag-max-count tag-count))
                         (ht ("name" key)
-                            ("uri" (concat "/dest/tags/" key))
+                            ("uri" (format "/dest/tags/%s/index.html" key))
                             ("posts" value)
                             ("count" tag-count))))
                   tag-map))
@@ -675,6 +728,10 @@ to `simplesite-tag-cloud-end-color'."
 ;;; post page
 (defun simplesite-generate-post (post common-map)
   "Generate post based on POST using COMMON-MAP."
+  (ht-set common-map "show-comment" t)
+  (ht-set common-map "disqus-id" (ht-get post "uri"))
+  (ht-set common-map "disqus-url" (concat simplesite-site-domain
+                                          (ht-get post "uri")))
   (ht-set common-map "page-title" (concat (ht-get post "title")
                                           " - "
                                           simplesite-site-title))
@@ -771,7 +828,7 @@ ARCHIVE-LIST: hash table of <archive, file>."
     (setq archive-list
           (ht-map #'(lambda (key value)
                       (ht ("name" key)
-                          ("uri" (concat "/dest/categories/" key))
+                          ("uri" (format "/dest/archives/%s/index.html" key))
                           ("posts" value)))
                   archive-map))
     ;; sort by category name
@@ -803,17 +860,16 @@ This should be call after theme prepared."
     result))
 
 ;;; main process
-;;;###autoload
-(defun simplesite-generate ()
+(defun simplesite--generate-no-advice ()
   "Generate site, this is the entrance function."
-  (interactive)
   (let ((progress-reporter
          (make-progress-reporter "[simplesite]: generating..." 0 100)))
     ;; check configurations
     (simplesite--check-config)
     ;; cleanup old files generated
     (simplesite--debug "clearing up old files generated...")
-    (f-delete simplesite--dest-directory t)
+    (if (f-exists? simplesite--dest-directory)
+        (f-delete simplesite--dest-directory t))
     (mkdir simplesite--dest-directory t)
     ;; Prepare  theme resource files
     (simplesite--debug "copying theme files...")
@@ -833,11 +889,11 @@ This should be call after theme prepared."
 
            (post-count (length post-list))
            (category-count (length category-list))
-           (category-uri "/dest/categories")
+           (category-index-uri "/dest/categories/index.html")
            (tag-count (length tag-list))
-           (tag-uri "/dest/tags")
+           (tag-index-uri "/dest/tags/index.html")
            (archive-count (length archive-list))
-           (archive-uri "/dest/archives")
+           (archive-index-uri "/dest/archives/index.html")
            (avatar-uri (simplesite--get-avatar-uri))
            (i 0)
 
@@ -852,23 +908,36 @@ This should be call after theme prepared."
                            ("category-count" category-count)
                            ("tag-count" tag-count)
                            ("archive-count" archive-count)
-                           ("category-uri" category-uri)
+                           ("category-uri" category-index-uri)
                            ("tag-count" tag-count)
-                           ("tag-uri" tag-uri)
+                           ("tag-uri" tag-index-uri)
                            ("archive-count" archive-count)
-                           ("archive-uri" archive-uri)
+                           ("archive-uri" archive-index-uri)
                            ("github-link" simplesite-personal-github-link)
                            ("twitter-link" simplesite-personal-twitter-link)
                            ("weibo-link" simplesite-personal-weibo-link)
                            ("douban-link" simplesite-personal-douban-link)
                            ("zhihu-link" simplesite-personal-zhihu-link)
                            ("avatar-uri" avatar-uri)
+                           ("show-comment" nil)
+                           ("disqus-shortname"
+                            simplesite-personal-disqus-shortname)
+                           ("disqus-comment"
+                            (if simplesite-personal-disqus-shortname t nil))
+                           ("duoshuo-shortname"
+                            simplesite-personal-duoshuo-shortname)
+                           ("duoshuo-comment"
+                            (if (and (not simplesite-personal-disqus-shortname)
+                                     simplesite-personal-duoshuo-shortname)
+                                t nil))
                            )))
 
       ;; generate post, then release it to save memory
       (mapc #'(lambda (post)
                 (when (ht-get post "post-content")
-                  (ht-set post "category-uri" category-uri)
+                  (ht-set post "category-uri"
+                          (format "/dest/categories/%s/index.html"
+                                  (ht-get post "category")))
                   (simplesite-generate-post post (ht-copy common-map))
                   (setq i (+ i 1))
                   (progress-reporter-update progress-reporter
@@ -889,6 +958,16 @@ This should be call after theme prepared."
       (progress-reporter-update progress-reporter 98)
       (progress-reporter-done progress-reporter)
       (message "Generating successfully!"))))
+
+;;;###autoload
+(defun simplesite-generate ()
+  "Activate some advice before generating and deactivate them after it."
+  (interactive)
+  (ad-activate 'org-html-link)
+  (with-demoted-errors "Warning: %S"
+    (simplesite--generate-no-advice))
+  (ad-deactivate 'org-html-link))
+
 
 (defun simplesite--check-config ()
   "Do some check before generate site.

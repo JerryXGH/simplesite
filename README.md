@@ -10,42 +10,35 @@ use github pages to publish it.
 If you would like to install the package manually, download or clone it and put
 on Emacs' `load-path`, then you can require it in your init file like this:
 
-    (require 'smartwin)
-
-It's available via MELPA, so you can just <kbd>M-x package-install RET smartwin
-RET</kbd>.
+    (require 'simplesite)
 
 ## Usage
 
 Add this to .emacs:
 
     (smartwin-mode 1)
+    (setq simplesite-author "<your name>"
+          simplesite-personal-avatar "<path to your avatar image>"
+          simplesite-source-directory "<path to org source file directory>"
+          simplesite-output-directory "<path to output directory>"
+          simplesite-personal-github-link "<github link>"
+          simplesite-site-domain "http://jerryxgh.github.io"
+     )
+then set comment shortname:
+     (setq simplesite-personal-disqus-shortname "<shortname in disqus>")
+or
+     (setq simplesite-personal-duoshuo-shortname "<shortname in duoshuo>")
 
-or run <kbd>M-x smartwin-mode</kbd> to toggle it manually.
+run <kbd>M-x simplesite-generate</kbd> to generate static site.
 
-To switch between buffers of smart window, you can bind keys like:
+If you have installed `simple-httpd`, then you can preview your site by:
+<kbd>M-x httpd-serve-directory</kbd>, then choose `simplesite-output-directory`
+to server, then open browse http://localhost:8080, you can see it.
 
-    (define-key smartwin-mode-map (kbd "C-c s") 'smartwin-switch-buffer)
+Enjoying!
 
-smartwin provides a function to clear shell like buffer like `clear` command:
-
-    (define-key smartwin-mode-map (kbd "C-l") 'smartwin-clear-shell)
-
-Then try run <kbd>M-x shell or eshell</kbd>.
-
-## Customization
-
-If you want to show more buffers in smart window, please customize variable
-`smartwin-buffers` or group `smartwin`.
 
 ## License
-
-The idea of `smartwin` is from ECB's `compile-window`, and initial work is based
-on `popwin`, thanks to all authors of them, and author of `popwin` is included
-in the author.
-
-Copyright (C) 2015 GuanghuiXu
-
-Copyright (C) 2011-2015 Tomohiro Matsuyama
+Copyright (C) 2016 GuanghuiXu
 
 Distributed under GNU GPL, version 2.

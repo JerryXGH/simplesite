@@ -19,20 +19,28 @@
                       <a href="{{{category-uri}}}/{{{category}}}">{{{category}}}</a>
                     </span>
 
-                    <span class="post-comments-count">
-                      &nbsp; | &nbsp;
-                      <a href="/2015/interview/#comments">
-                        <span class="post-comments-count ds-thread-count" data-thread-key="2015/interview/">0条评论</span>
-                      </a>
-                    </span>
+                    {{#disqus-comment}}
+                        <span class="post-comments-count">
+                            &nbsp; | &nbsp;
+                            <!-- <a href="{{site-domain}}{{uri}}#disqus_thread"></a> -->
+                            <a href="{{site-domain}}{{uri}}#comments"><span class='disqus-comment-count' data-disqus-identifier="{{uri}}"></span></a>
+                        </span>
+                    {{/disqus-comment}}
+                    {{#duoshuo-comment}}
+                        <span class="post-comments-count">
+                            &nbsp; | &nbsp;
+                            <!-- <a href="{{site-domain}}{{uri}}#disqus_thread"></a> -->
+                            <a href="{{site-domain}}{{uri}}#comments"><span class="ds-thread-count" data-thread-key="{{uri}}"></span></a>
+                        </span>
+                    {{/duoshuo-comment}}
                   </div>
                 </div>
                 <div class="post-body">
-                  {{{description}}}
+                    {{{description}}}
                 </div>
 
                 <div class="post-footer">
-                  <div class="post-eof"></div>
+                    <div class="post-eof"></div>
                 </div>
               </div>
               {{/post-list}}

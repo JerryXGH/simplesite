@@ -365,7 +365,8 @@ attributes of ORG-FILE, but not generate content of it."
       (setq post
             (ht ("file" org-file)
                 ("md5" (simplesite--md5-file org-file))
-                ("title" (or (simplesite--get-org-option "TITLE") "Untitled"))
+                ("title" (or (simplesite--get-org-option "TITLE")
+                             "Untitled"))
                 ("author" (or (simplesite--get-org-option "AUTHOR")
                               user-full-name "Unknown Author"))
                 ("description" (or (simplesite--get-org-option "DESCRIPTION")
@@ -408,7 +409,7 @@ Result = DIST-DIR + \"/posts\" + (ORG-FILE - SRC-DIR) - suffix + /."
 
 Result = \"/dest/posts\" + (ORG-FILE - SRC-DIR - suffix)."
   (format "/dest/posts%s/index.html" (file-name-sans-extension
-                         (s-chop-prefix src-dir org-file))))
+                                      (s-chop-prefix src-dir org-file))))
 
 (defun simplesite--get-category (org-file src-dir)
   "Get category of ORG-FILE.
@@ -726,21 +727,21 @@ to `simplesite-tag-cloud-end-color'."
 
 
 ;;; post page
-(defun simplesite-generate-post (post common-map)
-  "Generate post based on POST using COMMON-MAP."
-  (ht-set common-map "show-comment" t)
-  (ht-set common-map "disqus-id" (ht-get post "uri"))
-  (ht-set common-map "disqus-url" (concat simplesite-site-domain
-                                          (ht-get post "uri")))
-  (ht-set common-map "page-title" (concat (ht-get post "title")
-                                          " - "
-                                          simplesite-site-title))
-  (ht-set common-map "content" (simplesite--render-post-content post))
+(defun simplesite-generate-post (common-map-post)
+  "Generate post using COMMON-MAP-POST.
+COMMON-MAP-POST is the union of common-map and post."
+  ;; show comment in post
+  (ht-set common-map-post "show-comment" t)
+  (ht-set common-map-post "page-title" (concat (ht-get common-map-post "title")
+                                               " - "
+                                               simplesite-site-title))
+  (ht-set common-map-post "content" (simplesite--render-post-content
+                                     common-map-post))
   (let ((mustache-partial-paths
          (list (simplesite-get-theme-template-dir simplesite-theme
                                                   simplesite-theme-directory)))
 
-        (output-dir (ht-get post "output-dir")))
+        (output-dir (ht-get common-map-post "output-dir")))
     (if (not (file-directory-p output-dir))
         (mkdir output-dir t))
     (f-write
@@ -748,7 +749,7 @@ to `simplesite-tag-cloud-end-color'."
       (f-read (concat (simplesite-get-theme-template-dir
                        simplesite-theme simplesite-theme-directory)
                       "layout.mustache"))
-      common-map)
+      common-map-post)
      'utf-8
      (concat output-dir "index.html"))))
 
@@ -919,6 +920,12 @@ This should be call after theme prepared."
                            ("douban-link" simplesite-personal-douban-link)
                            ("zhihu-link" simplesite-personal-zhihu-link)
                            ("avatar-uri" avatar-uri)
+                           ("about-uri" (if (f-exists?
+                                             (concat simplesite-source-directory
+                                                     "/about.org"))
+                                            "/dest/posts/about/index.html"
+                                          nil))
+                           ("site-domain" simplesite-site-domain)
                            ("show-comment" nil)
                            ("disqus-shortname"
                             simplesite-personal-disqus-shortname)
@@ -932,13 +939,16 @@ This should be call after theme prepared."
                                 t nil))
                            )))
 
-      ;; generate post, then release it to save memory
+      (setq post-list (-map #'(lambda (post)
+                                (ht-merge common-map post))
+                            post-list))
+      ;; generate posts
       (mapc #'(lambda (post)
                 (when (ht-get post "post-content")
                   (ht-set post "category-uri"
                           (format "/dest/categories/%s/index.html"
                                   (ht-get post "category")))
-                  (simplesite-generate-post post (ht-copy common-map))
+                  (simplesite-generate-post post)
                   (setq i (+ i 1))
                   (progress-reporter-update progress-reporter
                                             (+ 55 (/ (* 40 i) post-count)))
@@ -955,7 +965,7 @@ This should be call after theme prepared."
       (simplesite-generate-tags post-list (ht-copy common-map))
       (progress-reporter-update progress-reporter 98)
       (simplesite-generate-archives post-list (ht-copy common-map))
-      (progress-reporter-update progress-reporter 98)
+      (progress-reporter-update progress-reporter 99)
       (progress-reporter-done progress-reporter)
       (message "Generating successfully!"))))
 

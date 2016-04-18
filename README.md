@@ -25,8 +25,10 @@ Add this to .emacs:
           simplesite-site-domain "http://jerryxgh.github.io"
      )
 then set comment shortname:
+
      (setq simplesite-personal-disqus-shortname "<shortname in disqus>")
 or
+
      (setq simplesite-personal-duoshuo-shortname "<shortname in duoshuo>")
 
 run <kbd>M-x simplesite-generate</kbd> to generate static site.

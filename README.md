@@ -16,7 +16,6 @@ on Emacs' `load-path`, then you can require it in your init file like this:
 
 Add this to .emacs:
 
-    (smartwin-mode 1)
     (setq simplesite-author "<your name>"
           simplesite-personal-avatar "<path to your avatar image>"
           simplesite-source-directory "<path to org source file directory>"

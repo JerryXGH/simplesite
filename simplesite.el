@@ -395,6 +395,35 @@ attributes of ORG-FILE, but not generate content of it."
 
     post))
 
+;; from http://emacs-china.org/blog/2015/04/20/org-mode-%E5%AF%BC%E5%87%BA-html-%E6%97%B6%E5%88%A0%E9%99%A4%E4%B8%AD%E6%96%87%E4%B8%8E%E4%B8%AD%E6%96%87%E4%B9%8B%E9%97%B4%E5%A4%9A%E4%BD%99%E7%9A%84%E7%A9%BA%E6%A0%BC/
+(defun simplesite-org-clear-space (text backend info)
+  "When export as HTML, delete extra space in multibyte language likd Chinese.
+TEXT is the transcoded data as a string.
+BACKEND is a symbal like 'html.
+INFO is communication channel, as a plist."
+  (when (org-export-derived-backend-p backend 'html)
+    (let ((regexp "[[:multibyte:]]")
+          (string text))
+      ;; remove extra space
+      (setq string
+            (replace-regexp-in-string
+             (format "\\(%s\\) *\n *\\(%s\\)" regexp regexp)
+             "\\1\\2" string))
+      ;; remove space before bold word
+      (setq string
+            (replace-regexp-in-string
+             (format "\\(%s\\) +\\(<\\)" regexp)
+             "\\1\\2" string))
+      ;; remove space after bold word
+      (setq string
+            (replace-regexp-in-string
+             (format "\\(>\\) +\\(%s\\)" regexp)
+             "\\1\\2" string))
+      string)))
+
+(add-to-list 'org-export-filter-paragraph-functions
+             'simplesite-org-clear-space)
+
 (defun simplesite--compute-output-dir (org-file dist-dir src-dir)
   "Get output directory of ORG-FILE, which ends with /.
 

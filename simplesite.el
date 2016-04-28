@@ -342,7 +342,6 @@ Copy images to OUTPUT-DIR directory and rename it to link name."
                        (simplesite--debug "file '%s' not exist" src-file))
                      ;; TODO: process other type links of org
                      ))))
-
         links))
 
 ;;; org backend
@@ -409,16 +408,16 @@ INFO is communication channel, as a plist."
             (replace-regexp-in-string
              (format "\\(%s\\) *\n *\\(%s\\)" regexp regexp)
              "\\1\\2" string))
-      ;; remove space before bold word
-      (setq string
-            (replace-regexp-in-string
-             (format "\\(%s\\) +\\(<\\)" regexp)
-             "\\1\\2" string))
-      ;; remove space after bold word
-      (setq string
-            (replace-regexp-in-string
-             (format "\\(>\\) +\\(%s\\)" regexp)
-             "\\1\\2" string))
+      ;; ;; remove space before bold word
+      ;; (setq string
+      ;;       (replace-regexp-in-string
+      ;;        (format "\\(%s\\) +\\(<\\)" regexp)
+      ;;        "\\1\\2" string))
+      ;; ;; remove space after bold word
+      ;; (setq string
+      ;;       (replace-regexp-in-string
+      ;;        (format "\\(>\\) +\\(%s\\)" regexp)
+      ;;        "\\1\\2" string))
       string)))
 
 (add-to-list 'org-export-filter-paragraph-functions
@@ -974,7 +973,7 @@ This should be call after theme prepared."
       ;; generate posts
       (mapc #'(lambda (post)
                 (when (ht-get post "post-content")
-                  (ht-set post "category-uri"
+                  (ht-set post "post-category-uri"
                           (format "/dest/categories/%s/index.html"
                                   (ht-get post "category")))
                   (simplesite-generate-post post)

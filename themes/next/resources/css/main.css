@@ -73,11 +73,29 @@ sup {
   vertical-align: baseline;
 }
 sup {
-  top: -0.5em;
+  font-size: 100%;
+  top: 0;
+  /* top: -0.5em; */
+}
+sup:before, sup:after {
+  /* letter-spacing: -0.2em; */
+}
+sup:before {
+    content:"[";
+}
+sup:after {
+    content:"]";
+}
+.footpara:nth-child(2) {
+    display: inline;
+}
+.footpara {
+    display: block;
 }
 sub {
   bottom: -0.25em;
 }
+
 img {
   border: 0;
 }

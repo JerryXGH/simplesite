@@ -142,7 +142,7 @@
 
              function moveToAnchorMotion() {
                  $('a[href*=#]').on('click', function () {
-                     $($(this).attr('href')).velocity('scroll');
+                     $($(this).attr('href').replace(/(:|\.|\[|\]|,)/g, '\\$1' )).velocity('scroll');
                  });
              }
 

@@ -52,6 +52,7 @@
 (require 'ht)
 (require 'mustache)
 (require 'f)
+(require 'parse-time)
 
 ;;; constants
 (defconst simplesite-version "0.1")
@@ -236,8 +237,11 @@ PROGRESS-REPORTER: a progress reporter."
     ;; sort files by date in descendent order
     (setq post-list (sort post-list
                           #'(lambda (a b)
-                              (string< (ht-get b "date")
-                                       (ht-get a "date")))))
+                              (if (string= (ht-get b "date") (ht-get a "date"))
+                                  (time-less-p (ht-get b "time-stamp")
+                                               (ht-get a "time-stamp"))
+                                (string< (ht-get b "date")
+                                         (ht-get a "date"))))))
     ;; set previous post and next post for every post
     (let ((next-post (car post-list)))
       (mapc #'(lambda (e)
@@ -375,8 +379,16 @@ attributes of ORG-FILE, but not generate content of it."
                                 (simplesite--get-category org-file src-dir)
                                 "default"))
                 ("uri" uri)
-                ;; TODO: do better date parsing
-                ("date" (or (simplesite--get-org-option "DATE")
+                ("time-stamp" (nth 5 (file-attributes org-file)))
+                ("date" (or (let* ((date-str (simplesite--get-org-option "DATE"))
+                                   (time (and date-str
+                                              (parse-time-string date-str))))
+                              (and time
+                                   (not (equal (parse-time-string "") time))
+                                   (simplesite--format-iso-8601-date
+                                    (apply 'encode-time
+                                           (mapcar #'(lambda (e) (or e 0))
+                                                   time)))))
                             (simplesite--format-iso-8601-date
                              (nth 5 (file-attributes org-file)))))
                 ("email" user-mail-address)

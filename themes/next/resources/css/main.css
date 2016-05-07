@@ -767,9 +767,11 @@ td {
   overflow: auto;
   font-size: 85%;
   line-height: 1.45;
-  color:#b2b2b2;
   background-color: #292b2e;
   border-radius: 3px;
+}
+.post pre {
+  color:#b2b2b2;
 }
 .post code {
   font-family: "PT Mono", Consolas, Monaco, Menlo, monospace;

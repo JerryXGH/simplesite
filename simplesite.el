@@ -1001,10 +1001,13 @@ This should be call after theme prepared."
 (defun simplesite-generate ()
   "Activate some advice before generating and deactivate them after it."
   (interactive)
-  (ad-activate 'org-html-link)
-  (with-demoted-errors "Warning: %S"
-    (simplesite--generate-no-advice))
-  (ad-deactivate 'org-html-link))
+  (let ((footnote-format-backup org-html-footnote-format))
+    (ad-activate 'org-html-link)
+    (setq org-html-footnote-format "<sup>[%s]</sup>")
+    (with-demoted-errors "Warning: %S"
+      (simplesite--generate-no-advice))
+    (ad-deactivate 'org-html-link)
+    (setq org-html-footnote-format footnote-format-backup)))
 
 
 (defun simplesite--check-config ()

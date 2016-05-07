@@ -80,12 +80,12 @@ sup {
 sup:before, sup:after {
   /* letter-spacing: -0.2em; */
 }
-sup:before {
-    content:"[";
-}
-sup:after {
-    content:"]";
-}
+/* sup:before { */
+/*     content:"["; */
+/* } */
+/* sup:after { */
+/*     content:"]"; */
+/* } */
 .footpara:nth-child(2) {
     display: inline;
 }
@@ -767,7 +767,8 @@ td {
   overflow: auto;
   font-size: 85%;
   line-height: 1.45;
-  background-color: #f7f7f7;
+  color:#b2b2b2;
+  background-color: #292b2e;
   border-radius: 3px;
 }
 .post code {

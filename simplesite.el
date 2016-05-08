@@ -64,15 +64,32 @@
   (if load-file-name (file-name-directory load-file-name))
   "Directory where simplesite is loaded from, ends with '/'.")
 
-
 ;;; custom options
 (defgroup simplesite nil
   "Options for generating static site."
   :tag "Static site generator based on org." :group 'org)
 
-(defcustom simplesite-debug t
-  "Debugging messages toggle, default to t."
-  :group 'simplesite :type 'boolean)
+(defconst SIMPLESITE-LOG-ERROR 0 "ERROR log level.")
+(defconst SIMPLESITE-LOG-WARN 0 "WARN log level.")
+(defconst SIMPLESITE-LOG-INFO 1 "INFO log level.")
+(defconst SIMPLESITE-LOG-DEBUG 2 "DEBUG log level.")
+
+(defcustom simplesite-log-level 'SIMPLESITE-LOG-INFO
+  "Log level of simplesite.
+Should be one of `SIMPLESITE-LOG-ERROR', `SIMPLESITE-LOG-WARN',
+`SIMPLESITE-LOG-INFO' or `SIMPLESITE-LOG-DEBUG'."
+  :group 'simplesite
+  :type '(choice
+          (const SIMPLESITE-LOG-ERROR)
+          (const SIMPLESITE-LOG-WARN)
+          (const SIMPLESITE-LOG-INFO)
+          (const SIMPLESITE-LOG-DEBUG))
+  :safe #'symbolp)
+
+(defcustom simplesite-log-message nil
+  "Output log to message."
+  :group 'simplesite
+  :type 'boolean)
 
 (defcustom simplesite-author user-full-name
   "Directory of all source files for generating site."
@@ -191,7 +208,7 @@ If THEME not exist in THEME-DIR, use default theme `next' under LOAD-DIR."
         (theme-resource-dir (simplesite-get-theme-resource-dir theme
                                                                theme-dir)))
     (unless (file-directory-p theme-resource-dir)
-      (message "Theme %s not found, use default theme `next' instead." theme)
+      (simplesite--warn "Theme %s not found, use default theme `next' instead." theme)
       (setq theme-dir (concat load-dir"themes/"))
       (setq theme-resource-dir (simplesite-get-theme-resource-dir theme
                                                                   theme-dir)))
@@ -228,7 +245,7 @@ PROGRESS-REPORTER: a progress reporter."
                       (progress-reporter-update
                        progress-reporter (+ 5 (/ (* 50 i) src-file-count)))
 
-                      (simplesite-export-org-file src-file src-dir dist-dir))
+                      (simplesite--export-org-file src-file src-dir dist-dir))
                   src-file-list)))
 
     ;; delete nil elements
@@ -301,11 +318,11 @@ Argument IGNORE-DIRECTORIES can be list of file names to be ignored."
 
 (defvar simplesite--file-links-in-srcs nil
   "List of all links in source files.
-This is used between `org-html-link' and `simplesite-export-org-file'")
+This is used between `org-html-link' and `simplesite--export-org-file'")
 
 ;; (defvar simplesite--current-src-output-dir nil
 ;;   "Current source file's output directory.
-;; This is used between `org-html-link' and `simplesite-export-org-file'")
+;; This is used between `org-html-link' and `simplesite--export-org-file'")
 
 ;;; advice of org-html-link to get list of links
 (defadvice org-html-link (before simplesite-org-html-link)
@@ -348,15 +365,13 @@ Copy images to OUTPUT-DIR directory and rename it to link name."
                      ))))
         links))
 
-;;; org backend
-(defun simplesite-export-org-file (org-file src-dir dist-dir)
-  "Export one ORG-FILE, return file attributes.
+;;; org backend - generate html by and from org-mode
+(defun simplesite--export-org-file (org-file src-dir dist-dir)
+  "Export one ORG-FILE, return a hashmap contain all result.
 
 SRC-DIR should be `simplesite-source-directory',
 DIST-DIR should be `simplesite--dest-directory',
-but to be simple, try to not use global variables.
-If SHOULD-GENERATE-CONTENT-P is t, generate content of ORG-FLLE, else, just get
-attributes of ORG-FILE, but not generate content of it."
+but to be simple, try to not use global variables."
   (let ((output-dir (simplesite--compute-output-dir org-file dist-dir src-dir))
         (uri (simplesite--compute-uri org-file src-dir))
         post)
@@ -405,35 +420,6 @@ attributes of ORG-FILE, but not generate content of it."
                                          output-dir))
 
     post))
-
-;; from http://emacs-china.org/blog/2015/04/20/org-mode-%E5%AF%BC%E5%87%BA-html-%E6%97%B6%E5%88%A0%E9%99%A4%E4%B8%AD%E6%96%87%E4%B8%8E%E4%B8%AD%E6%96%87%E4%B9%8B%E9%97%B4%E5%A4%9A%E4%BD%99%E7%9A%84%E7%A9%BA%E6%A0%BC/
-(defun simplesite-org-clear-space (text backend info)
-  "When export as HTML, delete extra space in multibyte language likd Chinese.
-TEXT is the transcoded data as a string.
-BACKEND is a symbal like 'html.
-INFO is communication channel, as a plist."
-  (when (org-export-derived-backend-p backend 'html)
-    (let ((regexp "[[:multibyte:]]")
-          (string text))
-      ;; remove extra space
-      (setq string
-            (replace-regexp-in-string
-             (format "\\(%s\\) *\n *\\(%s\\)" regexp regexp)
-             "\\1\\2" string))
-      ;; ;; remove space before bold word
-      ;; (setq string
-      ;;       (replace-regexp-in-string
-      ;;        (format "\\(%s\\) +\\(<\\)" regexp)
-      ;;        "\\1\\2" string))
-      ;; ;; remove space after bold word
-      ;; (setq string
-      ;;       (replace-regexp-in-string
-      ;;        (format "\\(>\\) +\\(%s\\)" regexp)
-      ;;        "\\1\\2" string))
-      string)))
-
-(add-to-list 'org-export-filter-paragraph-functions
-             'simplesite-org-clear-space)
 
 (defun simplesite--compute-output-dir (org-file dist-dir src-dir)
   "Get output directory of ORG-FILE, which ends with /.
@@ -490,7 +476,6 @@ will return \"this is title\" if OPTION is \"TITLE\""
     (setq buffer-file-coding-system 'binary)
     (insert-file-contents-literally file)
     (md5 (current-buffer))))
-
 
 ;;; index page
 (defun simplesite-generate-index (post-list common-map)
@@ -650,8 +635,7 @@ TAG-LIST: hash table of <tag, file>."
                       "layout.mustache"))
       common-map)
      'utf-8
-     (concat output-dir "/index.html")))
-  )
+     (concat output-dir "/index.html"))))
 
 (defun simplesite--generate-tag-page (tag common-map)
   "Generate tag page based on TAG using COMMON-MAP."
@@ -743,7 +727,7 @@ TAG-LIST: hash table of <tag, file>."
   "Compute font size of a tag with COUNT posts.
 
 MAX-COUNT: maximal posts that all tags have."
-  (if (< max-count 1)
+  (if (<= max-count 1)
       simplesite-tag-cloud-min-font
     (+ (round (* (/ (- count 1.0) (- max-count 1.0))
                  (- simplesite-tag-cloud-max-font
@@ -764,7 +748,6 @@ to `simplesite-tag-cloud-end-color'."
                   (- max-count 2))
 
                  (list (color-name-to-rgb simplesite-tag-cloud-end-color))))))
-
 
 ;;; post page
 (defun simplesite-generate-post (common-map-post)
@@ -800,7 +783,6 @@ COMMON-MAP-POST is the union of common-map and post."
                     simplesite-theme simplesite-theme-directory)
                    "post.mustache"))
    post))
-
 
 ;;; archive index page
 (defun simplesite-generate-archives (post-list common-map)
@@ -883,7 +865,7 @@ ARCHIVE-LIST: hash table of <archive, file>."
 (defun simplesite--get-avatar-uri ()
   "Prepare avatar according to `simplesite-personal-avatar'and return uri.
 
-This should be call after theme prepared."
+Should be called after theme preparation."
   (let ((result "/dest/resources/images/default_avatar.jpg"))
     (if simplesite-personal-avatar
         (if (or (s-starts-with-p "http://" simplesite-personal-avatar)
@@ -900,11 +882,123 @@ This should be call after theme prepared."
             )))
     result))
 
+;; From http://emacs-china.org/blog/2015/04/20/org-mode-%E5%AF%BC%E5%87%BA-html-%E6%97%B6%E5%88%A0%E9%99%A4%E4%B8%AD%E6%96%87%E4%B8%8E%E4%B8%AD%E6%96%87%E4%B9%8B%E9%97%B4%E5%A4%9A%E4%BD%99%E7%9A%84%E7%A9%BA%E6%A0%BC/
+(defun simplesite--org-clear-space (text backend _info)
+  "When export as HTML, delete extra space in multibyte language likd Chinese.
+TEXT is the transcoded data as a string.
+BACKEND is a symbal like 'html.
+_INFO is communication channel, as a plist."
+  (when (org-export-derived-backend-p backend 'html)
+    (let ((regexp "[[:multibyte:]]")
+          (string text))
+      ;; remove extra space
+      (setq string
+            (replace-regexp-in-string
+             (format "\\(%s\\) *\n *\\(%s\\)" regexp regexp)
+             "\\1\\2" string))
+      ;; ;; remove space before bold word
+      ;; (setq string
+      ;;       (replace-regexp-in-string
+      ;;        (format "\\(%s\\) +\\(<\\)" regexp)
+      ;;        "\\1\\2" string))
+      ;; ;; remove space after bold word
+      ;; (setq string
+      ;;       (replace-regexp-in-string
+      ;;        (format "\\(>\\) +\\(%s\\)" regexp)
+      ;;        "\\1\\2" string))
+      string)))
+
+(defun simplesite--check-config ()
+  "Do some check before generating."
+  (simplesite--debug "checking configuration...")
+  (unless (and simplesite-source-directory
+               (file-directory-p simplesite-source-directory))
+    (error "Source directory `%s' is not exist"
+           simplesite-source-directory))
+  (unless (and simplesite-output-directory
+               (file-directory-p simplesite-output-directory))
+    (setq simplesite-output-directory
+          (f-parent simplesite-source-directory)))
+  (setq simplesite-source-directory (directory-file-name
+                                     simplesite-source-directory))
+  (setq simplesite-output-directory (directory-file-name
+                                     simplesite-output-directory))
+  (setq simplesite--dest-directory (concat simplesite-output-directory "/dest"))
+  (if (s-starts-with-p simplesite--dest-directory simplesite-source-directory)
+      (error "Source directory `%s' should not under `%s'"
+             simplesite-source-directory simplesite--dest-directory)))
+
+;;; debug
+(defun simplesite--log-init()
+  "Create or clear `simplesite-log-buffer'."
+  (if (not (memq simplesite-log-level
+                 '(SIMPLESITE-LOG-ERROR
+                   SIMPLESITE-LOG-WARN
+                   SIMPLESITE-LOG-INFO
+                   SIMPLESITE-LOG-DEBUG)))
+      (setq simplesite-log-level 'SIMPLESITE-LOG-INFO))
+  (with-current-buffer (get-buffer-create simplesite-log-buffer)
+    (erase-buffer)
+    (set-buffer-modified-p nil)
+    (display-buffer (current-buffer) 'not-this-window)))
+
+(defun simplesite--log-quit ()
+  "Quit simplesite log window."
+  (let* ((buffer (get-buffer simplesite-log-buffer))
+         (window (and buffer (get-buffer-window buffer))))
+    (if window
+      ;; save-selected-window prevents `quit-window' from changing the current
+      ;; buffer (see https://github.com/flycheck/flycheck/issues/648).
+      (save-selected-window
+        (quit-window nil window)))))
+
+(defun simplesite--log (level &rest args)
+  "Log in LEVEL using ARGS.
+LEVEL should be one of `SIMPLESITE-LOG-INFO-ERROR', `SIMPLESITE-LOG-INFO' or
+`SIMPLESITE-LOG-DEBUG', if not, it will be ignored and use `SIMPLESITE-LOG-INFO'
+as default log level."
+  (if (not (memq level
+                 '(SIMPLESITE-LOG-ERROR
+                   SIMPLESITE-LOG-WARN
+                   SIMPLESITE-LOG-INFO
+                   SIMPLESITE-LOG-DEBUG)))
+      (setq level 'SIMPLESITE-LOG-INFO))
+  (if (<= (symbol-value level) (symbol-value simplesite-log-level))
+      (let ((log-msg
+             (concat (format-time-string "%Y-%m-%d %T " (current-time) t)
+                     "["
+                     (symbol-name level)
+                     "]: "
+                     (apply 'format args)
+                     "\n")))
+        (with-current-buffer (get-buffer-create simplesite-log-buffer)
+          (goto-char (point-max))
+          (insert log-msg))
+        (if simplesite-log-message
+            (apply 'message log-msg)))))
+
+(defun simplesite--error (&rest args)
+  "Log in error level using ARGS."
+  (apply 'simplesite--log 'SIMPLESITE-LOG-ERROR args))
+
+(defun simplesite--warn (&rest args)
+  "Log in warning level using ARGS."
+  (apply 'simplesite--log 'SIMPLESITE-LOG-WARN args))
+
+(defun simplesite--info (&rest args)
+  "Log in info level using ARGS."
+  (apply 'simplesite--log 'SIMPLESITE-LOG-INFO args))
+
+(defun simplesite--debug (&rest args)
+  "Log in debug level using ARGS."
+  (apply 'simplesite--log 'SIMPLESITE-LOG-DEBUG args))
+
 ;;; main process
-(defun simplesite--generate-no-advice ()
+(defun simplesite--do-generate ()
   "Generate site, this is the entrance function."
   (let ((progress-reporter
          (make-progress-reporter "[simplesite]: generating..." 0 100)))
+    (simplesite--debug "begin generating")
     ;; check configurations
     (simplesite--check-config)
     ;; cleanup old files generated
@@ -1007,57 +1101,36 @@ This should be call after theme prepared."
       (simplesite-generate-archives post-list (ht-copy common-map))
       (progress-reporter-update progress-reporter 99)
       (progress-reporter-done progress-reporter)
-      (message "Generating successfully!"))))
+      (simplesite--info "Generating successfully!"))))
+
+;; (defun simplesite--org-export-link-filter (transcoded backend channel)
+;;   "TODO: process links in org file."
+;;   (simplesite--debug "transcoded: %s" transcoded)
+;;   (simplesite--debug "backend: %s" backend)
+;;   nil)
 
 ;;;###autoload
 (defun simplesite-generate ()
   "Activate some advice before generating and deactivate them after it."
   (interactive)
   (let ((footnote-format-backup org-html-footnote-format))
+    ;; prepare for generating
+    (simplesite--log-init)
     (ad-activate 'org-html-link)
+    ;; (add-to-list 'org-export-filter-link-functions
+    ;;              'simplesite--org-export-link-filter)
     (setq org-html-footnote-format "<sup>[%s]</sup>")
+    (add-to-list 'org-export-filter-paragraph-functions
+                 'simplesite--org-clear-space)
     (with-demoted-errors "Warning: %S"
-      (simplesite--generate-no-advice))
+      (simplesite--do-generate)
+      (simplesite--log-quit))
+    ;; after generating, restore environment
     (ad-deactivate 'org-html-link)
-    (setq org-html-footnote-format footnote-format-backup)))
-
-
-(defun simplesite--check-config ()
-  "Do some check before generate site.
-PROGRESS-REPORTER is to report progress."
-  (simplesite--debug "checking configuration...")
-  (unless (and simplesite-source-directory
-               (file-directory-p simplesite-source-directory))
-    (error "Source directory `%s' is not exist"
-           simplesite-source-directory))
-  (unless (and simplesite-output-directory
-               (file-directory-p simplesite-output-directory))
-    (setq simplesite-output-directory
-          (f-parent simplesite-source-directory)))
-  (setq simplesite-source-directory (directory-file-name
-                                     simplesite-source-directory))
-  (setq simplesite-output-directory (directory-file-name
-                                     simplesite-output-directory))
-  (setq simplesite--dest-directory (concat simplesite-output-directory "/dest"))
-  (if (s-starts-with-p simplesite--dest-directory simplesite-source-directory)
-      (error "Source directory `%s' should not under `%s'"
-             simplesite-source-directory simplesite--dest-directory)))
-
-(defun simplesite--correct-links (post-content)
-  "Correct links in exported POST-CONTENT.
-
-TODO: not implemented."
-  post-content)
-
-;;; debug
-(defun simplesite--debug (&rest args)
-  "Print a debug message like `message' if `simplesite-debug' is set.
-ARGS can be string or format and string."
-  (if simplesite-debug
-      (with-current-buffer (get-buffer-create simplesite-log-buffer)
-        (goto-char (point-max))
-        (insert "[simplesite]: " (apply 'format args) "\n"))
-    (apply 'message args)))
+    (setq org-html-footnote-format footnote-format-backup)
+    (setq org-export-filter-paragraph-functions
+          (delq 'simplesite--org-clear-space
+                org-export-filter-paragraph-functions))))
 
 (provide 'simplesite)
 

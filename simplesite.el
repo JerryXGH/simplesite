@@ -372,6 +372,7 @@ Copy images to OUTPUT-DIR directory and rename it to link name."
 SRC-DIR should be `simplesite-source-directory',
 DIST-DIR should be `simplesite--dest-directory',
 but to be simple, try to not use global variables."
+  (simplesite--debug "processing '%s'" org-file)
   (let ((output-dir (simplesite--compute-output-dir org-file dist-dir src-dir))
         (uri (simplesite--compute-uri org-file src-dir))
         post)
@@ -938,9 +939,11 @@ _INFO is communication channel, as a plist."
                    SIMPLESITE-LOG-DEBUG)))
       (setq simplesite-log-level 'SIMPLESITE-LOG-INFO))
   (with-current-buffer (get-buffer-create simplesite-log-buffer)
+    (toggle-truncate-lines -1)
     (erase-buffer)
     (set-buffer-modified-p nil)
-    (display-buffer (current-buffer) 'not-this-window)))
+    (display-buffer (current-buffer) 'not-this-window)
+    (select-window (get-buffer-window (current-buffer)))))
 
 (defun simplesite--log-quit ()
   "Quit simplesite log window."
@@ -973,7 +976,8 @@ as default log level."
                      "\n")))
         (with-current-buffer (get-buffer-create simplesite-log-buffer)
           (goto-char (point-max))
-          (insert log-msg))
+          (insert log-msg)
+          (redisplay))
         (if simplesite-log-message
             (apply 'message log-msg)))))
 
@@ -1124,6 +1128,12 @@ as default log level."
                  'simplesite--org-clear-space)
     (with-demoted-errors "Warning: %S"
       (simplesite--do-generate)
+      (if (y-or-n-p "Generation done, preview it?")
+          (if (not (featurep 'simple-httpd))
+              (simplesite--warn "package simple-httpd not installed")
+            (httpd-serve-directory simplesite-output-directory)
+            (message "please browse 'http://127.0.0.1:8080' to preview")
+            (browse-url "http://127.0.0.1:8080")))
       (simplesite--log-quit))
     ;; after generating, restore environment
     (ad-deactivate 'org-html-link)

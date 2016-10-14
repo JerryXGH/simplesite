@@ -6,10 +6,10 @@
 ;; Maintainer: GuanghuiXu gh_xu@qq.com
 ;; Created: 2015-4-28
 ;; Version: 0.1
-;; Keywords: blog
+;; Keywords: local
 ;; Homepage: https://github.com/jerryxgh/simplesite
 ;; Package-Version: 0.1
-;; Package-Requires: ((emacs "24") (org "8.0") (f "0.17.3") (mustache "0.23"))
+;; Package-Requires: ((emacs "24.3") (org "8.0") (f "0.17.3") (mustache "0.23"))
 ;;
 
 ;; This file is not part of GNU Emacs.
@@ -1128,7 +1128,7 @@ as default log level."
                  'simplesite--org-clear-space)
     (with-demoted-errors "Warning: %S"
       (simplesite--do-generate)
-      (if (y-or-n-p "Generation done, preview it?")
+      (if (y-or-n-p "Generation done, preview it? ")
           (if (not (featurep 'simple-httpd))
               (simplesite--warn "package simple-httpd not installed")
             (httpd-serve-directory simplesite-output-directory)
